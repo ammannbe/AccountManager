@@ -1,0 +1,49 @@
+<?php
+
+namespace App\Filament\Resources\Services\Schemas;
+
+use App\Enums\ServiceType;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+
+class ServiceForm
+{
+    public static function configure(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Section::make(__('Service'))
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('name')->label(__('Name'))->required()->maxLength(255),
+                        TextInput::make('key')
+                            ->label(__('Key'))
+                            ->helperText(__('Used in the registration link, e.g. /register/recipes.'))
+                            ->required()
+                            ->alphaDash()
+                            ->maxLength(50)
+                            ->unique(ignoreRecord: true),
+                        TextInput::make('url')->label(__('URL'))->url()->maxLength(255),
+                        Select::make('type')->label(__('Type'))->options(ServiceType::class)->default(ServiceType::Oidc)->required(),
+                        Textarea::make('description')->label(__('Description'))->columnSpanFull(),
+                    ]),
+                Section::make(__('Access'))
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('access_group')
+                            ->label(__('Group in the identity provider'))
+                            ->helperText(__('Active accounts get this group (e.g. svc-recipes); restrict the OIDC client to it.'))
+                            ->maxLength(255)
+                            ->unique(ignoreRecord: true),
+                        TextInput::make('position')->label(__('Position'))->numeric()->default(0)->required(),
+                        Toggle::make('self_signup')->label(__('Self-registration'))->helperText(__('Anybody may register for this service.')),
+                        Toggle::make('requires_approval')->label(__('Requires approval'))->helperText(__('An admin has to approve new accounts.')),
+                        Toggle::make('visible')->label(__('Visible in the portal'))->default(true),
+                    ]),
+            ]);
+    }
+}

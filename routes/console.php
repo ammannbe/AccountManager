@@ -1,0 +1,99 @@
+<?php
+
+use App\Enums\AccountStatus;
+use App\Identity\IdentityProvider;
+use App\Jobs\SyncUserGroups;
+use App\Models\Registration;
+use App\Models\Service;
+use App\Models\ServiceAccount;
+use App\Models\User;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Str;
+
+use function Laravel\Prompts\password;
+
+Artisan::command('accounts:make-admin {email} {--password : Also set a password for the local emergency login}', function (string $email) {
+    $user = User::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])->first()
+        ?? new User(['email' => mb_strtolower($email), 'name' => Str::before($email, '@')]);
+
+    $user->is_admin = true;
+    $user->email_verified_at ??= now();
+
+    if ($this->option('password')) {
+        $user->password = password(label: 'Password', required: true, validate: ['password' => 'min:12']);
+    }
+
+    $user->save();
+
+    $this->info("{$user->email} is an admin now.");
+})->purpose('Make a user an admin (created if unknown), optionally with a local emergency password');
+
+Artisan::command('accounts:import {--dry-run : Only show what would change}', function (IdentityProvider $provider) {
+    if (! $provider->manages()) {
+        $this->error('The identity provider is managed by hand (IDENTITY_DRIVER=manual).');
+
+        return 1;
+    }
+
+    $services = Service::query()->whereNotNull('access_group')->get()->keyBy('access_group');
+    $dryRun = (bool) $this->option('dry-run');
+
+    foreach ($provider->users() as $identity) {
+        if ($identity->email === null) {
+            $this->warn("Skipped {$identity->name}: no email address.");
+
+            continue;
+        }
+
+        $user = User::query()->where('oidc_sub', $identity->id)->first()
+            ?? User::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($identity->email)])->first();
+
+        if ($user && $user->oidc_sub !== null && $user->oidc_sub !== $identity->id) {
+            $this->warn("Skipped {$identity->email}: linked to another identity.");
+
+            continue;
+        }
+
+        $groups = array_values(array_filter($identity->groups, fn (string $group): bool => $services->has($group)));
+        $this->line(sprintf('%s %s (%s)', $user ? 'link' : 'create', $identity->email, $groups === [] ? 'no services' : implode(', ', $groups)));
+
+        if ($dryRun) {
+            continue;
+        }
+
+        $user ??= new User(['email' => mb_strtolower($identity->email), 'name' => $identity->name ?: Str::before($identity->email, '@')]);
+        $user->oidc_sub = $identity->id;
+        $user->email_verified_at ??= now();
+        $user->save();
+
+        foreach ($groups as $group) {
+            ServiceAccount::query()->firstOrCreate(
+                ['user_id' => $user->id, 'service_id' => $services[$group]->id],
+                ['status' => AccountStatus::Active, 'approved_at' => now()],
+            );
+        }
+    }
+
+    return 0;
+})->purpose('Import the users of the identity provider and their service groups');
+
+Artisan::command('accounts:sync-groups', function () {
+    $users = User::query()->whereNotNull('oidc_sub')->get();
+
+    $users->each(fn (User $user) => SyncUserGroups::dispatchSync($user));
+
+    $this->info("Synced the groups of {$users->count()} user(s).");
+})->purpose('Set the groups of all linked users in the identity provider');
+
+Artisan::command('registrations:prune', function () {
+    $pruned = Registration::query()
+        ->where(fn ($query) => $query
+            ->where('expires_at', '<', now())
+            ->orWhere('confirmed_at', '<', now()->subDays(30)))
+        ->delete();
+
+    $this->info("Pruned {$pruned} registration(s).");
+})->purpose('Delete expired and old confirmed registrations');
+
+Schedule::command('registrations:prune')->daily();
