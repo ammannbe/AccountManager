@@ -29,6 +29,11 @@ class ManualIdentityProvider implements IdentityProvider
         throw new LogicException('The identity provider is managed by hand.');
     }
 
+    public function updateUser(string $userId, string $name, ?string $email = null): void
+    {
+        // Nothing to do: the admin keeps the provider up to date.
+    }
+
     public function syncGroups(string $userId, array $groups, array $managed): void
     {
         // Nothing to do: the admin sets the groups in the provider.

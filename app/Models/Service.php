@@ -22,6 +22,7 @@ class Service extends Model
         'name',
         'description',
         'url',
+        'login_url',
         'type',
         'access_group',
         'self_signup',
@@ -46,6 +47,15 @@ class Service extends Model
     public function getRouteKeyName(): string
     {
         return 'key';
+    }
+
+    /**
+     * Where "Open" leads: straight into the login of the service if known, so that logging in
+     * also links an existing account there.
+     */
+    public function openUrl(): ?string
+    {
+        return $this->login_url ?: $this->url;
     }
 
     /**

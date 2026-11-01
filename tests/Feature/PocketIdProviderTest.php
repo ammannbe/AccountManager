@@ -83,6 +83,36 @@ class PocketIdProviderTest extends TestCase
             && $request['userGroupIds'] === ['g-family', 'g-recipes', 'g-tasks']);
     }
 
+    public function test_updating_a_user_keeps_the_fields_it_does_not_change(): void
+    {
+        Http::fake([
+            'login.example.com/api/users/u1' => Http::sequence()
+                ->push(['id' => 'u1', 'username' => 'anna', 'email' => 'anna@example.com', 'emailVerified' => false, 'locale' => 'de', 'isAdmin' => true, 'disabled' => false])
+                ->push(['id' => 'u1'])
+                ->push(['id' => 'u1', 'username' => 'anna', 'email' => 'anna@example.com', 'emailVerified' => false, 'locale' => 'de', 'isAdmin' => true, 'disabled' => false])
+                ->push(['id' => 'u1']),
+        ]);
+
+        $this->provider()->updateUser('u1', 'Anna Beispiel');
+        $this->provider()->updateUser('u1', 'Anna Beispiel', 'anna@new.example.com');
+
+        $updates = Http::recorded(fn (Request $request): bool => $request->method() === 'PUT')->values();
+        $this->assertCount(2, $updates);
+
+        [$nameOnly] = $updates[0];
+        $this->assertSame('anna', $nameOnly['username']);
+        $this->assertSame('anna@example.com', $nameOnly['email']);
+        $this->assertFalse($nameOnly['emailVerified']);
+        $this->assertTrue($nameOnly['isAdmin']);
+        $this->assertSame('de', $nameOnly['locale']);
+        $this->assertSame('Anna', $nameOnly['firstName']);
+        $this->assertSame('Beispiel', $nameOnly['lastName']);
+
+        [$withEmail] = $updates[1];
+        $this->assertSame('anna@new.example.com', $withEmail['email']);
+        $this->assertTrue($withEmail['emailVerified']);
+    }
+
     public function test_the_login_code_is_mailed_by_pocket_id(): void
     {
         Http::fake(['login.example.com/api/users/u1/one-time-access-email' => Http::response(null, 204)]);

@@ -25,8 +25,8 @@
                 </div>
 
                 @if ($account?->status === AccountStatus::Active)
-                    @if ($service->url)
-                        <x-button :href="$service->url" secondary>{{ __('Open :service', ['service' => $service->name]) }}</x-button>
+                    @if ($service->openUrl())
+                        <x-button :href="$service->openUrl()" secondary>{{ __('Open :service', ['service' => $service->name]) }}</x-button>
                     @endif
                     @if ($account->external_username)
                         <p class="mt-2 text-sm text-stone-600">{{ __('Username: :name', ['name' => $account->external_username]) }}</p>
@@ -48,4 +48,6 @@
             <li class="text-stone-600">{{ __('There are no services yet.') }}</li>
         @endforelse
     </ul>
+
+    <p class="mt-8 text-sm text-stone-600">{{ __('Already have an account in one of the services? Open it here and log in: your account there is linked through your email address.') }}</p>
 </x-layout>

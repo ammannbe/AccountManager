@@ -8,6 +8,10 @@
         <p class="rounded-lg bg-amber-100 px-4 py-3 text-sm text-amber-900">{{ __('The login is not configured yet.') }}</p>
     @endif
 
+    @if ($signup)
+        <div class="mt-3"><x-button :href="route('registrations.account')" secondary>{{ __('Create account') }}</x-button></div>
+    @endif
+
     <p class="mt-8 text-center text-sm text-stone-500">
         <a class="underline" href="{{ route('filament.admin.auth.login') }}">{{ __('Admin login') }}</a>
     </p>

@@ -1,10 +1,13 @@
-<x-layout :title="__('Register for :service', ['service' => $service->name])">
-    <h1 class="mb-2 text-xl font-semibold">{{ __('Register for :service', ['service' => $service->name]) }}</h1>
-    @if ($service->description)
+@php $title = $service ? __('Register for :service', ['service' => $service->name]) : __('Create account'); @endphp
+<x-layout :title="$title">
+    <h1 class="mb-2 text-xl font-semibold">{{ $title }}</h1>
+    @if ($service?->description)
         <p class="mb-6 text-stone-600">{{ $service->description }}</p>
+    @elseif (! $service)
+        <p class="mb-6 text-stone-600">{{ __('One account for all services: afterwards you choose the services you want to use.') }}</p>
     @endif
 
-    <form method="POST" action="{{ route('registrations.store', $service) }}" class="flex flex-col gap-4">
+    <form method="POST" action="{{ $service ? route('registrations.store', $service) : route('registrations.account.store') }}" class="flex flex-col gap-4">
         @csrf
         <input type="hidden" name="rendered_at" value="{{ $renderedAt }}">
         <label class="flex flex-col gap-1">

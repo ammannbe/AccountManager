@@ -26,6 +26,12 @@ interface IdentityProvider
     public function createUser(string $email, string $name, ?string $locale = null): IdentityUser;
 
     /**
+     * Updates the profile of a user. A given e-mail address is set as verified (the AccountManager
+     * verified it); without one, the address and its verification stay as they are.
+     */
+    public function updateUser(string $userId, string $name, ?string $email = null): void;
+
+    /**
      * Sets the managed groups of a user to $groups; groups outside $managed stay untouched.
      *
      * @param  list<string>  $groups

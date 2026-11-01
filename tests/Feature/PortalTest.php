@@ -48,6 +48,15 @@ class PortalTest extends TestCase
             ->assertDontSee('Hidden');
     }
 
+    public function test_open_starts_the_login_of_the_service_if_known(): void
+    {
+        $user = User::factory()->create();
+        $service = Service::factory()->create(['url' => 'https://recipes.example.com', 'login_url' => 'https://recipes.example.com/auth/oidc/redirect']);
+        ServiceAccount::factory()->for($user)->for($service)->create();
+
+        $this->actingAs($user)->get(route('portal'))->assertSee('https://recipes.example.com/auth/oidc/redirect', false);
+    }
+
     public function test_services_with_self_registration_are_activated_right_away(): void
     {
         $idp = $this->fakeIdentityProvider();

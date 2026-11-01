@@ -136,16 +136,59 @@ class RegistrationTest extends TestCase
         $this->post(route('registrations.confirm', ['token' => $token]))->assertRedirect(route('registrations.show', ['token' => $token]));
     }
 
-    public function test_an_existing_identity_is_linked_without_a_login_code(): void
+    public function test_an_existing_identity_is_linked_and_verified_without_a_login_code(): void
     {
         $idp = $this->fakeIdentityProvider();
         $existing = $idp->createUser('new.person@example.com', 'New Person');
+        $idp->verified[$existing->id] = false;
         $service = Service::factory()->selfSignup()->create();
 
         $this->post(route('registrations.confirm', ['token' => $this->token($service)]))->assertOk();
 
         $this->assertSame($existing->id, User::query()->where('email', 'new.person@example.com')->value('oidc_sub'));
+        $this->assertTrue($idp->verified[$existing->id]);
         $this->assertSame([], $idp->loginCodes);
+    }
+
+    public function test_an_account_can_be_created_without_a_service(): void
+    {
+        $idp = $this->fakeIdentityProvider();
+        Service::factory()->selfSignup()->create();
+
+        $this->get(route('login'))->assertSee(route('registrations.account'), false);
+        $this->get(route('registrations.account'))->assertOk()->assertSee('name="website"', false);
+        $this->post(route('registrations.account.store'), [
+            'name' => 'New Person',
+            'email' => 'new.person@example.com',
+            'rendered_at' => Crypt::encryptString((string) now()->subSeconds(5)->getTimestamp()),
+        ])->assertRedirect(route('registrations.account.sent'));
+
+        $registration = Registration::query()->firstOrFail();
+        $this->assertNull($registration->service_id);
+        Notification::assertSentTo(new AnonymousNotifiable, ConfirmRegistration::class, fn (ConfirmRegistration $notification): bool => $notification->service === null);
+
+        $token = Registration::newToken();
+        $registration->update(['token_hash' => Registration::hash($token)]);
+
+        $this->post(route('registrations.confirm', ['token' => $token]))->assertOk()->assertSee(route('login'), false);
+
+        $user = User::query()->where('email', 'new.person@example.com')->firstOrFail();
+        $this->assertSame('idp-1', $user->oidc_sub);
+        $this->assertSame(0, $user->serviceAccounts()->count());
+        $this->assertSame(['idp-1'], $idp->loginCodes);
+    }
+
+    public function test_accounts_without_a_service_need_a_managed_provider(): void
+    {
+        $this->fakeIdentityProvider(manages: false);
+
+        $this->get(route('registrations.account'))->assertNotFound();
+        $this->get(route('login'))->assertDontSee(route('registrations.account'), false);
+
+        $this->fakeIdentityProvider();
+        config(['login.signup' => false]);
+
+        $this->get(route('registrations.account'))->assertNotFound();
     }
 
     public function test_services_with_approval_request_the_access(): void

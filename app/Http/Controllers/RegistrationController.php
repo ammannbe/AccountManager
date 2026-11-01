@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Accounts\Registrar;
 use App\Http\Requests\StartRegistrationRequest;
+use App\Identity\IdentityProvider;
 use App\Identity\IdentityProviderException;
 use App\Models\Service;
 use Illuminate\Http\RedirectResponse;
@@ -13,9 +14,12 @@ use Illuminate\View\View;
 
 class RegistrationController extends Controller
 {
-    public function create(Service $service): View
+    /**
+     * Without a service: only the account, the services follow in the portal.
+     */
+    public function create(?Service $service = null): View
     {
-        abort_unless($service->self_signup && $service->visible, 404);
+        $this->ensureOpen($service);
 
         return view('registrations.create', [
             'service' => $service,
@@ -24,16 +28,18 @@ class RegistrationController extends Controller
         ]);
     }
 
-    public function store(StartRegistrationRequest $request, Service $service, Registrar $registrar): RedirectResponse
+    public function store(StartRegistrationRequest $request, Registrar $registrar, ?Service $service = null): RedirectResponse
     {
-        abort_unless($service->self_signup && $service->visible, 404);
+        $this->ensureOpen($service);
 
         $registrar->start($service, $request->string('name')->toString(), $request->string('email')->toString(), app()->getLocale());
 
-        return redirect()->route('registrations.sent', $service);
+        return $service
+            ? redirect()->route('registrations.sent', $service)
+            : redirect()->route('registrations.account.sent');
     }
 
-    public function sent(Service $service): View
+    public function sent(?Service $service = null): View
     {
         return view('registrations.sent', ['service' => $service]);
     }
@@ -65,5 +71,19 @@ class RegistrationController extends Controller
         }
 
         return view('registrations.done', ['result' => $result, 'service' => $registration->service]);
+    }
+
+    /**
+     * "Create account" without a service: needs a provider the AccountManager manages, otherwise
+     * nobody could log in afterwards.
+     */
+    public static function signupOpen(): bool
+    {
+        return config('login.signup') && app(IdentityProvider::class)->manages();
+    }
+
+    private function ensureOpen(?Service $service): void
+    {
+        abort_unless($service ? $service->self_signup && $service->visible : self::signupOpen(), 404);
     }
 }

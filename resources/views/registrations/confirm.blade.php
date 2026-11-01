@@ -1,7 +1,9 @@
 <x-layout :title="__('Confirm registration')">
     @if ($registration)
         <h1 class="mb-4 text-xl font-semibold">{{ __('Confirm registration') }}</h1>
-        <p class="mb-6 text-stone-600">{{ __('Complete the registration of :email for :service.', ['email' => $registration->email, 'service' => $registration->service->name]) }}</p>
+        <p class="mb-6 text-stone-600">{{ $registration->service
+            ? __('Complete the registration of :email for :service.', ['email' => $registration->email, 'service' => $registration->service->name])
+            : __('Complete the registration of :email.', ['email' => $registration->email]) }}</p>
         <form method="POST" action="{{ route('registrations.confirm', ['token' => $token]) }}">
             @csrf
             <x-button>{{ __('Confirm registration') }}</x-button>

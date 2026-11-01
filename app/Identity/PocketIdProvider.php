@@ -48,22 +48,48 @@ class PocketIdProvider implements IdentityProvider
 
     public function createUser(string $email, string $name, ?string $locale = null): IdentityUser
     {
-        $name = trim($name) !== '' ? trim($name) : Str::before($email, '@');
-        $firstName = Str::before($name, ' ');
-        $lastName = trim(Str::after($name, $firstName));
-
         $response = $this->send('post', '/api/users', [
             'username' => $this->uniqueUsername($email),
             'email' => $email,
             'emailVerified' => true,
-            'firstName' => Str::limit($firstName, 50, ''),
-            'lastName' => Str::limit($lastName, 50, ''),
-            'displayName' => Str::limit($name, 100, ''),
+            ...$this->names($name, $email),
             'locale' => $locale,
             'isAdmin' => false,
         ]);
 
         return $this->toUser((array) $response->json());
+    }
+
+    public function updateUser(string $userId, string $name, ?string $email = null): void
+    {
+        $current = (array) $this->send('get', "/api/users/{$userId}")->json();
+
+        // The update replaces the whole user: everything not changed here is sent back as it is.
+        $this->send('put', "/api/users/{$userId}", [
+            'username' => $current['username'] ?? '',
+            'email' => $email ?? ($current['email'] ?? null),
+            'emailVerified' => $email !== null ? true : (bool) ($current['emailVerified'] ?? false),
+            ...$this->names($name, $email ?? (string) ($current['email'] ?? '')),
+            'locale' => $current['locale'] ?? null,
+            'isAdmin' => (bool) ($current['isAdmin'] ?? false),
+            'disabled' => (bool) ($current['disabled'] ?? false),
+        ]);
+    }
+
+    /**
+     * @return array{firstName: string, lastName: string, displayName: string}
+     */
+    private function names(string $name, string $email): array
+    {
+        $name = trim($name) !== '' ? trim($name) : Str::before($email, '@');
+        $firstName = Str::before($name, ' ');
+        $lastName = trim(Str::after($name, $firstName));
+
+        return [
+            'firstName' => Str::limit($firstName, 50, ''),
+            'lastName' => Str::limit($lastName, 50, ''),
+            'displayName' => Str::limit($name, 100, ''),
+        ];
     }
 
     public function syncGroups(string $userId, array $groups, array $managed): void

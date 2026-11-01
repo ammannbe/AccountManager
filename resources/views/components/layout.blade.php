@@ -13,12 +13,19 @@
         <header class="mb-10 flex items-center justify-between">
             <a href="{{ auth()->check() ? route('portal') : route('login') }}" class="text-2xl font-semibold">{{ __('Account') }}</a>
             @auth
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit" class="text-sm underline">{{ __('Log out') }}</button>
-                </form>
+                <nav class="flex items-center gap-4 text-sm">
+                    <a href="{{ route('profile') }}" class="underline">{{ __('Profile') }}</a>
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button type="submit" class="underline">{{ __('Log out') }}</button>
+                    </form>
+                </nav>
             @endauth
         </header>
+
+        @if (session('status'))
+            <p class="mb-6 rounded-lg bg-green-100 px-4 py-3 text-sm text-green-800">{{ session('status') }}</p>
+        @endif
 
         @if ($errors->any())
             <ul class="mb-6 rounded-lg bg-red-100 px-4 py-3 text-sm text-red-800">

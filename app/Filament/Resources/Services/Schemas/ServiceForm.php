@@ -26,8 +26,15 @@ class ServiceForm
                             ->required()
                             ->alphaDash()
                             ->maxLength(50)
+                            // "sent" is taken by /register/sent.
+                            ->notIn(['sent'])
                             ->unique(ignoreRecord: true),
                         TextInput::make('url')->label(__('URL'))->url()->maxLength(255),
+                        TextInput::make('login_url')
+                            ->label(__('Login URL'))
+                            ->helperText(__('Optional: starts the login of the service, e.g. https://recipes.example.com/auth/oidc/redirect. "Open" in the portal uses it instead of the URL.'))
+                            ->url()
+                            ->maxLength(255),
                         Select::make('type')->label(__('Type'))->options(ServiceType::class)->default(ServiceType::Oidc)->required(),
                         Textarea::make('description')->label(__('Description'))->columnSpanFull(),
                     ]),

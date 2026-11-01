@@ -3,6 +3,7 @@
 namespace Tests\Fakes;
 
 use App\Identity\IdentityProvider;
+use App\Identity\IdentityProviderException;
 use App\Identity\IdentityUser;
 
 class FakeIdentityProvider implements IdentityProvider
@@ -15,6 +16,11 @@ class FakeIdentityProvider implements IdentityProvider
 
     /** @var list<string> */
     public array $loginCodes = [];
+
+    /** @var array<string, bool> */
+    public array $verified = [];
+
+    public bool $failUpdates = false;
 
     public function __construct(public bool $manages = true) {}
 
@@ -43,7 +49,23 @@ class FakeIdentityProvider implements IdentityProvider
     {
         $id = 'idp-'.(count($this->users) + 1);
 
+        $this->verified[$id] = true;
+
         return $this->users[$id] = new IdentityUser($id, $email, $name);
+    }
+
+    public function updateUser(string $userId, string $name, ?string $email = null): void
+    {
+        if ($this->failUpdates) {
+            throw new IdentityProviderException('Update failed.');
+        }
+
+        $user = $this->users[$userId];
+        $this->users[$userId] = new IdentityUser($userId, $email ?? $user->email, $name, $user->disabled, $user->groups);
+
+        if ($email !== null) {
+            $this->verified[$userId] = true;
+        }
     }
 
     public function syncGroups(string $userId, array $groups, array $managed): void

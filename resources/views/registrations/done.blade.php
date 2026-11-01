@@ -10,9 +10,11 @@
         <p class="mb-4 text-stone-600">{{ __('You already have an account: log in as usual.') }}</p>
     @endif
 
-    @if ($result->account->status === AccountStatus::Requested)
+    @if (! $service || ! $result->account)
+        <div class="mt-6"><x-button :href="route('login')">{{ __('Log in') }}</x-button></div>
+    @elseif ($result->account->status === AccountStatus::Requested)
         <p class="mt-4 text-stone-600">{{ __('Your access to :service needs an approval. You will get an email as soon as it is granted.', ['service' => $service->name]) }}</p>
-    @elseif ($service->url && $result->automatic)
-        <div class="mt-6"><x-button :href="$service->url">{{ __('Open :service', ['service' => $service->name]) }}</x-button></div>
+    @elseif ($service->openUrl() && $result->automatic)
+        <div class="mt-6"><x-button :href="$service->openUrl()">{{ __('Open :service', ['service' => $service->name]) }}</x-button></div>
     @endif
 </x-layout>

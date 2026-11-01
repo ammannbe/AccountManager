@@ -14,6 +14,9 @@ return [
     |
     */
 
+    // "Create account" without a service (/register); needs a managed identity provider.
+    'signup' => (bool) env('AUTH_SIGNUP_ENABLED', true),
+
     'oidc' => [
         'enabled' => (bool) env('AUTH_OIDC_ENABLED', false),
         'label' => env('AUTH_OIDC_LABEL', 'SSO'),

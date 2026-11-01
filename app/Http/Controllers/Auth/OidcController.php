@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Auth\OidcLogin;
 use App\Auth\OidcLoginException;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\RegistrationController;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,7 +26,7 @@ class OidcController extends Controller
             return redirect()->route('portal');
         }
 
-        return view('auth.login');
+        return view('auth.login', ['signup' => RegistrationController::signupOpen()]);
     }
 
     public function redirect(): SymfonyRedirectResponse

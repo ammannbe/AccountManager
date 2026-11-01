@@ -16,6 +16,11 @@ return [
 
     'driver' => env('IDENTITY_DRIVER', 'manual'),
 
+    // Page of the provider where users manage their passkeys (linked in the portal and the profile).
+    'account_url' => env('IDENTITY_ACCOUNT_URL') ?: (env('IDENTITY_DRIVER') === 'pocket-id' && env('AUTH_OIDC_ISSUER')
+        ? rtrim((string) env('AUTH_OIDC_ISSUER'), '/').'/settings/account'
+        : null),
+
     'pocket_id' => [
         // Base URL of the API as reached from this server (e.g. https://login.example.com).
         'url' => rtrim((string) env('POCKET_ID_URL', env('AUTH_OIDC_ISSUER', '')), '/'),

@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 /**
- * A self-registration for a service, waiting for the e-mail confirmation (double opt-in).
+ * A self-registration for an account, optionally with a service, waiting for the e-mail
+ * confirmation (double opt-in).
  */
 class Registration extends Model
 {
