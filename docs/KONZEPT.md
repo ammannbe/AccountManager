@@ -1,6 +1,6 @@
 # Konzept: AccountManager (SSO, Dienste, Abos, Haushalte)
 
-Stand: 2026-11-01 · Status: Phasen 1–4 umgesetzt (Phase 4 als MVP), Hosting des AccountManagers offen
+Stand: 2026-11-01 · Status: Phasen 1–4 umgesetzt (Phase 4 als MVP)
 
 **Namen:** Die zentrale App heisst **AccountManager** (Repo und Projektordner), für User erscheint sie als «Konto» unter `konto.<domain>`. Pocket ID läuft unter `login.<domain>`. Im Text steht «Konto» für den AccountManager.
 
@@ -262,7 +262,7 @@ In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistr
 ### Entschieden (2026-11-01)
 
 - **Namen und Subdomains:** AccountManager, für User «Konto» unter `konto.<domain>`; Pocket ID unter `login.<domain>`.
-- **Server:** Pocket ID und AccountManager laufen auf Benjamins privatem Server.
+- **Server:** Pocket ID läuft auf Benjamins privatem Server (Portainer); der AccountManager läuft auf KeyHelp wie die anderen Apps (Forgejo-Deploy).
 - **Passkeys:** Passkeys mit E-Mail-Login-Code als Ausweg sind in Ordnung, Pocket ID ist gesetzt.
 - **Fremde Hoster:** Auch der AccountManager muss von anderen Hostern betrieben werden können, also generisch, ohne feste Bezüge zu einer Domain oder einem Server (alles über Konfiguration).
 - **Reihenfolge:** zuerst SSO (Phasen 1–3), direkt danach AccountManager (Phase 4 ff.). Die Aufgabenliste entsteht in einer separaten Session.

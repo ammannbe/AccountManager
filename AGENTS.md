@@ -23,6 +23,11 @@ AccountManager («Konto»): central account portal for own services. Users log i
 - Pocket ID needs SMTP and "Email login code from admin" for the login codes, and an API key of an admin (`POCKET_ID_API_KEY`).
 - Commands: `accounts:import [--dry-run]` (links provider users by id/email and creates active accounts for the groups of services), `accounts:sync-groups`, `accounts:make-admin`.
 
+## Deployment
+
+- KeyHelp (PHP-FPM + cron), like the other apps. `.forgejo/workflows/deploy.yml` (same as RecipeManager): push to `main` → GitHub → Forgejo pull mirror → builds the assets in CI, uploads `public/build`, then `git pull` + `composer install --no-dev` + `migrate` + `optimize` on the server via SSH. Forgejo variables `SSH_HOST`, `SSH_USER`, `SSH_FINGERPRINT`, `DEPLOY_PATH`, `PRIMARY_SITE_URL`, secret `SSH_KEY`.
+- Cron every minute: `schedule:run` and `queue:work --max-time=50` (mails and the group sync are queued).
+
 ## Local development
 
 - Pocket ID runs in the RecipeManager DDEV project (`https://recipemanager.ddev.site:14111`, API key `local-development-only-api-key`, see RecipeManager `AGENTS.md`); reach it at `http://ddev-RecipeManager-pocket-id:1411`. Put `AUTH_OIDC_*`, `IDENTITY_DRIVER=pocket-id`, `POCKET_ID_URL`, `POCKET_ID_API_KEY` into the git-ignored `.ddev/config.local.yaml` (`web_environment`). Mails of the AccountManager: its Mailpit (`ddev mailpit`); login codes are mailed by Pocket ID (RecipeManager's Mailpit).
