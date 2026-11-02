@@ -1,9 +1,10 @@
+{{-- Inline styles: the panel uses Filament's prebuilt CSS, which lacks most Tailwind utilities. --}}
 @if (config('login.oidc.enabled'))
-    <div class="flex flex-col gap-y-4">
-        <div class="flex items-center gap-x-3 text-sm text-gray-500 dark:text-gray-400">
-            <span class="h-px flex-1 bg-gray-200 dark:bg-white/10"></span>
+    <div style="display: flex; flex-direction: column; row-gap: 1rem;">
+        <div style="display: flex; align-items: center; column-gap: 0.75rem; font-size: 0.875rem; color: var(--gray-500);">
+            <span style="height: 1px; flex: 1; background: currentColor; opacity: 0.3;"></span>
             {{ __('or') }}
-            <span class="h-px flex-1 bg-gray-200 dark:bg-white/10"></span>
+            <span style="height: 1px; flex: 1; background: currentColor; opacity: 0.3;"></span>
         </div>
 
         <x-filament::button
