@@ -6,12 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>{{ $title ? $title.' – ' : '' }}{{ __('Account') }}</title>
+    @include('partials.favicon')
+    @include('partials.meta')
     @vite(['resources/css/app.css'])
 </head>
 <body class="min-h-dvh bg-stone-50 text-stone-900 antialiased">
     <main class="mx-auto flex min-h-dvh max-w-xl flex-col px-6 py-12">
         <header class="mb-10 flex items-center justify-between">
-            <a href="{{ auth()->check() ? route('portal') : route('login') }}" class="text-2xl font-semibold">{{ __('Account') }}</a>
+            <a href="{{ auth()->check() ? route('portal') : route('login') }}" class="inline-flex items-center gap-3 text-2xl font-semibold"><img src="/favicon-96x96.png" alt="" class="size-9 rounded-lg">{{ __('Account') }}</a>
             @auth
                 <nav class="flex items-center gap-4 text-sm">
                     <a href="{{ route('profile') }}" class="underline">{{ __('Profile') }}</a>

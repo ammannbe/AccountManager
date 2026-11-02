@@ -30,9 +30,15 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName(fn (): string => __('Account').' · Admin')
+            ->brandLogo(fn (): View => view('filament.brand'))
+            ->brandLogoHeight('2rem')
             ->colors([
-                'primary' => Color::Sky,
+                'primary' => Color::Red,
             ])
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn (): View => view('partials.favicon'),
+            )
             ->renderHook(
                 PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
                 fn (): View => view('filament.oidc-login-button'),
