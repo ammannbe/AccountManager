@@ -210,11 +210,14 @@ Für RecipeManager, Shoppinglist und Chorelist gleich aufgebaut, alles über `.e
 
 ## 7. Migration bestehender User
 
-1. Export aus beiden Apps (E-Mail, Name, bestätigt ja/nein).
-2. Zusammenführen über die bestätigte E-Mail-Adresse; Konflikte (gleiche Adresse, verschiedene Namen; unbestätigte Adressen) in einer Liste zur manuellen Entscheidung.
-3. Import ins Konto, das die User per API in Pocket ID anlegt und Gruppen setzt (`svc-recipes`, `svc-shoppinglist` je nach bisherigem Account).
-4. In den Apps `oidc_sub` setzen.
-5. Ankündigung an die User, danach Versand der Login-Codes zum Einrichten des Passkeys. Lokale Logins bleiben in der Übergangszeit aktiv.
+Der Umstieg ist **freiwillig und pro User** (Entscheid 2026-11-02). Lokale Logins bleiben aktiv, niemand muss migrieren.
+
+1. Der User erstellt im Konto ein Konto (`/register`), mit derselben E-Mail-Adresse wie in der App, und erhält den Dienst.
+2. In der App verknüpft er sein bestehendes Konto: entweder «Anmelden mit …» bzw. «Öffnen» im Portal (Verknüpfung über die bestätigte E-Mail-Adresse) oder im Profil der App «Mit … verknüpfen» (auch bei anderer Adresse). Daten und Freigaben bleiben erhalten.
+3. Die Apps zeigen den SSO-Knopf zuoberst bei Login, Registrierung und Profil, darunter «Noch kein …-Konto?» mit Link zur Registrierung im Konto (`AUTH_OIDC_SIGNUP_URL`). Den Namen des Anbieters holen sie aus Pocket ID (`APP_NAME`), sofern `AUTH_OIDC_LABEL` leer ist.
+4. User ohne Verknüpfung erhalten in den Apps weiterhin die lokal konfigurierten Standardrechte (Abschnitt 4).
+
+Option für später, falls doch alle umgestellt werden sollen: Export aus den Apps (E-Mail, Name, bestätigt ja/nein), Zusammenführen über die bestätigte E-Mail-Adresse (Konflikte manuell), Import ins Konto mit Anlage in Pocket ID (`accounts:import` für bestehende Pocket-ID-User), `oidc_sub` in den Apps setzen, Ankündigung und Login-Codes per Mail.
 
 ## 8. Rückbau
 
@@ -231,7 +234,7 @@ Für RecipeManager, Shoppinglist und Chorelist gleich aufgebaut, alles über `.e
 | 2 | Pocket ID aufsetzen (Testinstanz), RecipeManager anbinden | SSO für den RecipeManager | 1 |
 | 3 | OIDC-Login in der Shoppinglist, Verbinden ohne Rückfrage | SSO für beide Apps | 2 |
 | 4 | Konto MVP: Dienste, User, Zugänge, Gruppen-Sync, Selbstregistrierung pro Dienst | Zentrale Verwaltung | 2 |
-| 5 | User-Migration | Bestehende User auf SSO | 3, 4 |
+| 5 | Freiwillige User-Migration (Abschnitt 7) | Bestehende User wechseln selbst auf SSO | 3, 4 |
 | 6 | Abos, Freischaltungen, Webhooks, QR-Rechnungen; KI-Freischaltung in der Shoppinglist | Kostenpflichtige Funktionen | 4 |
 | 7 | Haushalte lokal in Shoppinglist, RecipeManager und Chorelist (`HOUSEHOLDS_DRIVER=local`) | Haushalte pro App, auch ohne Konto | — (jederzeit möglich) |
 | 8 | Haushalte im Konto, Webhooks, Spiegelung in den Apps, Übersicht der Freigaben | App-übergreifende Haushalte | 4, 7 |
@@ -241,9 +244,9 @@ Jede Phase in einem eigenen Feature-Branch, mit Tests und einzeln deploybar.
 
 **Stand 2026-11-01:** Phasen 1–3 umgesetzt. OIDC-Login optional in RecipeManager, Shoppinglist und Chorelist (`config/login.php`, gleiche `AUTH_*`-Variablen; in den Fortify-Apps Notfallzugang über `AUTH_LOCAL_EMERGENCY_EMAILS` statt Admin-Flag), Pocket ID produktiv unter `login.<domain>`, «Mit RecipeManager verbinden» ohne Eingabe über `PASSPORT_TRUSTED_CLIENTS`.
 
-**Phase 4 (MVP):** Dienstekatalog, User, Zugänge (beantragt/aktiv/gesperrt) mit Freigabe im Admin-Bereich, Gruppen-Abgleich mit Pocket ID (nur verwaltete Gruppen), Selbstregistrierung pro Dienst mit Double-Opt-in, Honeypot und Login-Code, Portal «Meine Dienste», Import bestehender Pocket-ID-User (`accounts:import`). Dazu (2026-11-03): Konto ohne Dienst erstellen (`/register`), Profil (Name, E-Mail mit Bestätigung, Abgleich mit Pocket ID), Link zu den Passkeys, «Öffnen» startet den SSO-Login der App. Noch nicht: Webhooks an die Apps, Mailer pro Dienst, Profilfelder, Abos/Rechnungen, Haushalte.
+**Phase 4 (MVP):** Dienstekatalog, User, Zugänge (beantragt/aktiv/gesperrt) mit Freigabe im Admin-Bereich, Gruppen-Abgleich mit Pocket ID (nur verwaltete Gruppen), Selbstregistrierung pro Dienst mit Double-Opt-in, Honeypot und Login-Code, Portal «Meine Dienste», Import bestehender Pocket-ID-User (`accounts:import`). Dazu (2026-11-03): Konto ohne Dienst erstellen (`/register`), Profil (Name, E-Mail mit Bestätigung, Abgleich mit Pocket ID), Link zu den Passkeys, «Öffnen» startet den SSO-Login der App. **Phase 5 (2026-11-02):** freiwilliger Umstieg pro User, SSO-Knopf zuoberst bei Login, Registrierung und Profil aller Apps, Name des Anbieters aus Pocket ID. Noch nicht: Webhooks an die Apps, Mailer pro Dienst, Profilfelder, Abos/Rechnungen, Haushalte.
 
-In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistrierung. SSO wird dort nur mit von Hand angelegten Test- und Admin-Accounts genutzt; alle anderen User melden sich weiter lokal an. Der breite Umstieg folgt mit Phase 5.
+In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistrierung. SSO wird dort nur mit von Hand angelegten Test- und Admin-Accounts genutzt; alle anderen User melden sich weiter lokal an. Ab Phase 5 wechseln bestehende User freiwillig (Abschnitt 7).
 
 **Lokale Entwicklung:** Passkeys brauchen HTTPS und eine feste Domain. Pocket ID läuft lokal als zusätzlicher DDEV-Dienst (z. B. `login.<projekt>.ddev.site`); für automatisierte Tests wird der OIDC-Anbieter gemockt.
 

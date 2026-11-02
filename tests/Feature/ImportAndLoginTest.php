@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Auth\OidcLabel;
 use App\Enums\AccountStatus;
 use App\Identity\IdentityUser;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\PendingCommand;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\AbstractProvider;
@@ -86,5 +88,25 @@ class ImportAndLoginTest extends TestCase
         config(['login.oidc.enabled' => true, 'login.oidc.label' => 'Pocket ID']);
 
         $this->get(route('login'))->assertOk()->assertSee('Pocket ID')->assertSee(route('oidc.redirect'), false);
+    }
+
+    public function test_the_login_page_names_the_provider_as_pocket_id_publishes_it(): void
+    {
+        config(['login.oidc.enabled' => true, 'login.oidc.label' => null, 'services.oidc.base_url' => 'https://login.example.com']);
+        Http::fake(['login.example.com/api/application-configuration' => Http::response([
+            ['key' => 'appName', 'type' => '', 'value' => 'NarrenLogin'],
+        ])]);
+
+        $this->get(route('login'))->assertOk()->assertSee('NarrenLogin');
+        $this->assertSame('NarrenLogin', OidcLabel::get());
+        Http::assertSentCount(1);
+    }
+
+    public function test_the_label_is_sso_when_the_provider_publishes_no_name(): void
+    {
+        config(['login.oidc.label' => null, 'services.oidc.base_url' => 'https://login.example.com']);
+        Http::fake(['*' => Http::response('Not found', 404)]);
+
+        $this->assertSame(OidcLabel::FALLBACK, OidcLabel::get());
     }
 }

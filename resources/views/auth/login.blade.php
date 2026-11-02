@@ -3,7 +3,7 @@
     <p class="mb-6 text-stone-600">{{ __('Manage your access to all services in one place.') }}</p>
 
     @if (config('login.oidc.enabled'))
-        <x-button :href="route('oidc.redirect')">{{ __('Log in with :provider', ['provider' => config('login.oidc.label')]) }}</x-button>
+        <x-button :href="route('oidc.redirect')">{{ __('Log in with :provider', ['provider' => App\Auth\OidcLabel::get()]) }}</x-button>
     @else
         <p class="rounded-lg bg-amber-100 px-4 py-3 text-sm text-amber-900">{{ __('The login is not configured yet.') }}</p>
     @endif

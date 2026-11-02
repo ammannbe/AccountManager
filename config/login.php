@@ -19,7 +19,8 @@ return [
 
     'oidc' => [
         'enabled' => (bool) env('AUTH_OIDC_ENABLED', false),
-        'label' => env('AUTH_OIDC_LABEL', 'SSO'),
+        // Name on the buttons; empty: the APP_NAME of a Pocket ID provider, otherwise "SSO" (App\Auth\OidcLabel).
+        'label' => env('AUTH_OIDC_LABEL') ?: null,
 
         // Create a local user on the first login of a provider user unknown here.
         'registration' => (bool) env('AUTH_OIDC_REGISTRATION', true),

@@ -13,7 +13,7 @@
             icon="heroicon-o-key"
             size="lg"
         >
-            {{ __("Log in with :provider", ["provider" => config("login.oidc.label")]) }}
+            {{ __("Log in with :provider", ["provider" => App\Auth\OidcLabel::get()]) }}
         </x-filament::button>
     </div>
 @endif
