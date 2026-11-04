@@ -56,7 +56,8 @@ class OidcController extends Controller
             return redirect()->route('login')->withErrors(['oidc' => __('The login failed. Please try again.')]);
         }
 
-        Auth::login($user);
+        // Remembered like Shoppinglist and Chorelist, otherwise the session ends after SESSION_LIFETIME idle minutes.
+        Auth::login($user, remember: true);
         $request->session()->regenerate();
 
         return redirect()->intended(route('portal'));

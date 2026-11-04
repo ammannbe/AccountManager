@@ -8,6 +8,7 @@ use App\Identity\IdentityUser;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\PendingCommand;
 use Laravel\Socialite\Facades\Socialite;
@@ -77,7 +78,9 @@ class ImportAndLoginTest extends TestCase
         $provider->shouldReceive('user')->andReturn($identity);
         Socialite::shouldReceive('driver')->with('oidc')->andReturn($provider);
 
-        $this->get(route('oidc.callback'))->assertRedirect(route('portal'));
+        $this->get(route('oidc.callback'))->assertRedirect(route('portal'))
+            // Stays signed in beyond the session lifetime.
+            ->assertCookie(Auth::guard()->getRecallerName());
 
         $this->assertAuthenticatedAs($user);
         $this->assertSame('u1', $user->fresh()->oidc_sub);
