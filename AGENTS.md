@@ -8,7 +8,7 @@ AccountManager («Konto»): central account portal for own services. Users log i
 - Filament 5 admin panel at `/admin` (`AdminPanelProvider`, only `users.is_admin`). The user facing part is plain Blade + Tailwind 4 (`resources/views`, layout `<x-layout>`).
 - Laravel Socialite + `kovah/laravel-socialite-oidc` for the login, Larastan level 7.
 - Icon: the Narrenhaus logo (both jesters, traced from the original PNG): `src/logo.svg` (also `public/narrenhaus.svg`), rendered to `src/favicon.png` (1024 px, transparent) → `ddev npm run favicon -- --source src/favicon.png --theme '#b91c1c' --bg '#fafaf9' --padding-bg '#fff4cc' --clean` (`partials/favicon.blade.php`, also in the panel via `HEAD_END`). Highlight color red (buttons, panel `Color::Red`). Link previews: `partials/meta.blade.php` + `public/og-image.png`.
-- Generic for other hosters: domains, provider, texts only through configuration. Default locale `de` (`lang/de.json`, keys are the English texts, Swiss spelling "ss", informal "du").
+- Generic for other hosters: domains, provider, texts only through configuration. Default locale `de` (`lang/de.json`; regional locales like `de_CH` fall back to it in `AppServiceProvider`, keys are the English texts, Swiss spelling "ss", informal "du").
 
 ## Concepts
 

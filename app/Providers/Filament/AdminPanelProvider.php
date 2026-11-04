@@ -40,7 +40,7 @@ class AdminPanelProvider extends PanelProvider
                 fn (): View => view('partials.favicon'),
             )
             ->renderHook(
-                PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
+                PanelsRenderHook::AUTH_LOGIN_FORM_BEFORE,
                 fn (): View => view('filament.oidc-login-button'),
             )
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')

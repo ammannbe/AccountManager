@@ -6,6 +6,7 @@ use App\Auth\OidcLogin;
 use App\Auth\OidcLoginException;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\RegistrationController;
+use Filament\Facades\Filament;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,9 +30,14 @@ class OidcController extends Controller
         return view('auth.login', ['signup' => RegistrationController::signupOpen()]);
     }
 
-    public function redirect(): SymfonyRedirectResponse
+    public function redirect(Request $request): SymfonyRedirectResponse
     {
         abort_unless(config('login.oidc.enabled'), 404);
+
+        // From the admin login: back to the panel, unless Filament already remembered a page there.
+        if ($request->query('panel') === 'admin' && ! $request->session()->has('url.intended')) {
+            $request->session()->put('url.intended', Filament::getPanel('admin')->getUrl());
+        }
 
         return $this->provider()->redirect();
     }
@@ -59,6 +65,12 @@ class OidcController extends Controller
         // Remembered like Shoppinglist and Chorelist, otherwise the session ends after SESSION_LIFETIME idle minutes.
         Auth::login($user, remember: true);
         $request->session()->regenerate();
+
+        // Users without panel access would only see a 403 there.
+        if (! $user->canAccessPanel(Filament::getPanel('admin'))
+            && str_starts_with((string) $request->session()->get('url.intended'), Filament::getPanel('admin')->getUrl())) {
+            $request->session()->forget('url.intended');
+        }
 
         return redirect()->intended(route('portal'));
     }
