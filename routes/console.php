@@ -1,5 +1,7 @@
 <?php
 
+use App\Billing\Billing;
+use App\Billing\BillingException;
 use App\Entitlements\Entitlements;
 use App\Enums\AccountStatus;
 use App\Enums\SubscriptionStatus;
@@ -128,6 +130,25 @@ Artisan::command('entitlements:refresh {--all : Recompute the entitlements of ev
     $this->info("Ended {$expired->count()} subscription(s), checked {$userIds->unique()->count()} user(s).");
 })->purpose('End expired subscriptions and send the entitlements of subscriptions that started');
 
+Artisan::command('billing:run', function (Billing $billing) {
+    if (! $billing->enabled()) {
+        $this->warn('Billing is disabled (BILLING_CREDITOR_IBAN is not set): no invoices are created.');
+    }
+
+    try {
+        $run = $billing->run();
+    } catch (BillingException $exception) {
+        $this->error($exception->getMessage());
+
+        return 1;
+    }
+
+    $this->info("Created {$run->created} invoice(s), sent {$run->issued}, {$run->overdue} became overdue, sent {$run->reminded} reminder(s).");
+
+    return 0;
+})->purpose('Create the invoices of due subscription periods, send them, mark overdue invoices and send reminders');
+
 Schedule::command('entitlements:refresh')->everyFifteenMinutes();
+Schedule::command('billing:run')->dailyAt('06:00')->withoutOverlapping();
 Schedule::command('registrations:prune')->daily();
 Schedule::command('households:prune')->daily();

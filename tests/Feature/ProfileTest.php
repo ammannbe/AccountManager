@@ -107,4 +107,55 @@ class ProfileTest extends TestCase
 
         $this->assertSame('anna@example.com', $this->storedEmail());
     }
+
+    public function test_the_billing_address_shows_where_invoices_are_sent(): void
+    {
+        $this->actingAs($this->user)->get(route('profile'))->assertOk()->assertDontSee(route('profile.billing'));
+
+        config(['billing.creditor.iban' => 'CH9300762011623852957']);
+        $this->actingAs($this->user)->get(route('profile'))->assertOk()->assertSee(route('profile.billing'));
+    }
+
+    public function test_users_save_their_billing_address(): void
+    {
+        $this->actingAs($this->user)->put(route('profile.billing'), [
+            'billing_name' => ' Muster AG ',
+            'billing_street' => 'Rosenweg 3',
+            'billing_postal_code' => '3000',
+            'billing_city' => 'Bern',
+            'billing_country' => 'ch',
+        ])->assertSessionHasErrors('billing_country');
+
+        $this->actingAs($this->user)->put(route('profile.billing'), [
+            'billing_name' => ' Muster AG ',
+            'billing_street' => 'Rosenweg 3',
+            'billing_postal_code' => '3000',
+            'billing_city' => 'Bern',
+            'billing_country' => 'CH',
+        ])->assertRedirect(route('profile'))->assertSessionHasNoErrors();
+
+        $this->user->refresh();
+        $this->assertSame(['Muster AG', 'Rosenweg 3', '3000', 'Bern', 'CH'], [$this->user->billing_name, $this->user->billing_street, $this->user->billing_postal_code, $this->user->billing_city, $this->user->billing_country]);
+
+        // Emptied: no address, also not the preselected country.
+        $this->actingAs($this->user)->put(route('profile.billing'), ['billing_country' => 'CH'])->assertSessionHasNoErrors();
+        $this->assertNull($this->user->fresh()?->billing_country);
+    }
+
+    public function test_the_billing_address_must_fit_the_payment_slip(): void
+    {
+        $this->actingAs($this->user)->put(route('profile.billing'), ['billing_street' => 'Rosenweg 3', 'billing_country' => 'CH'])
+            ->assertSessionHasErrors(['billing_postal_code', 'billing_city']);
+
+        $this->actingAs($this->user)->put(route('profile.billing'), ['billing_postal_code' => '3000', 'billing_city' => 'Bern', 'billing_country' => 'XX'])
+            ->assertSessionHasErrors('billing_country');
+
+        $this->actingAs($this->user)->put(route('profile.billing'), ['billing_name' => 'Анна', 'billing_postal_code' => '3000', 'billing_city' => 'Bern', 'billing_country' => 'CH'])
+            ->assertSessionHasErrors('billing_name');
+
+        $this->actingAs($this->user)->put(route('profile.billing'), ['billing_postal_code' => '3000', 'billing_city' => str_repeat('a', 36), 'billing_country' => 'CH'])
+            ->assertSessionHasErrors('billing_city');
+
+        $this->assertNull($this->user->fresh()?->billing_city);
+    }
 }

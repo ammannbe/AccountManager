@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * An offer: features of one service, or a bundle across services (no service). The price fields
- * are kept for the invoices of a later phase; nothing is billed yet.
+ * An offer: features of one service, or a bundle across services (no service). With a price and an
+ * interval its subscriptions are billed per period (App\Billing\BillingPeriod).
  *
  * @property PlanInterval|null $interval
  */

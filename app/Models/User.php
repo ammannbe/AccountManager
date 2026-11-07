@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'billing_name', 'billing_street', 'billing_postal_code', 'billing_city', 'billing_country'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -88,6 +88,31 @@ class User extends Authenticatable implements FilamentUser
     public function suspensions(): HasMany
     {
         return $this->hasMany(Suspension::class);
+    }
+
+    /**
+     * @return HasMany<Invoice, $this>
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    /**
+     * Recipient of an invoice: billing name (or the name), the structured address and the email.
+     *
+     * @return array{name: string, street: ?string, postal_code: ?string, city: ?string, country: ?string, email: ?string}
+     */
+    public function billingRecipient(): array
+    {
+        return [
+            'name' => $this->billing_name ?: $this->name,
+            'street' => $this->billing_street ?: null,
+            'postal_code' => $this->billing_postal_code ?: null,
+            'city' => $this->billing_city ?: null,
+            'country' => $this->billing_country ?: null,
+            'email' => $this->email,
+        ];
     }
 
     /**

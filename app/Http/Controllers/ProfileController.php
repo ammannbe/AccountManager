@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Billing\BillingAddress;
+use App\Billing\BillingConfig;
 use App\Identity\IdentityProvider;
 use App\Identity\IdentityProviderException;
 use App\Models\User;
@@ -15,7 +17,7 @@ use Illuminate\View\View;
 
 /**
  * Name and e-mail address, kept in sync with the identity provider: users manage their account
- * here, the provider is only needed for the login and the passkeys.
+ * here, the provider is only needed for the login and the passkeys. The billing address stays here.
  */
 class ProfileController extends Controller
 {
@@ -23,7 +25,29 @@ class ProfileController extends Controller
 
     public function edit(Request $request): View
     {
-        return view('profile', ['user' => $request->user()]);
+        /** @var User $user */
+        $user = $request->user();
+
+        return view('profile', [
+            'user' => $user,
+            // The address only matters where invoices are sent.
+            'billing' => app(BillingConfig::class)->enabled() || $user->billing_city !== null || $user->invoices()->exists(),
+            'countries' => BillingAddress::countries(),
+        ]);
+    }
+
+    /**
+     * Billing address for the invoices (only in the AccountManager, not at the provider).
+     */
+    public function updateBilling(Request $request): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $data = $request->validate(BillingAddress::rules(), [], BillingAddress::attributes());
+        $user->update(BillingAddress::normalize($data));
+
+        return redirect()->route('profile')->with('status', __('Your billing address has been saved.'));
     }
 
     public function update(Request $request, IdentityProvider $provider): RedirectResponse

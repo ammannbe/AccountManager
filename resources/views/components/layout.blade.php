@@ -37,7 +37,15 @@
                 </form>
             </div>
             <nav class="mx-auto flex max-w-xl gap-1 px-3 pb-2" aria-label="{{ __('Account') }}">
-                @foreach (['portal' => __('My services'), 'households.index' => __('Households'), 'profile' => __('Profile')] as $route => $label)
+                @php
+                    $tabs = ['portal' => __('My services'), 'households.index' => __('Households')];
+                    // Invoices only where billing is on or the user has some.
+                    if (app(\App\Billing\BillingConfig::class)->enabled() || auth()->user()->invoices()->issued()->exists()) {
+                        $tabs['invoices.index'] = __('Invoices');
+                    }
+                    $tabs['profile'] = __('Profile');
+                @endphp
+                @foreach ($tabs as $route => $label)
                     @php $active = request()->routeIs($route); @endphp
                     <a href="{{ route($route) }}" @class(['tab', 'tab-active' => $active]) @if ($active) aria-current="page" @endif>{{ $label }}</a>
                 @endforeach

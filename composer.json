@@ -10,11 +10,13 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "dompdf/dompdf": "^3.1",
         "filament/filament": "^5.6",
         "kovah/laravel-socialite-oidc": "^0.8.0",
         "laravel/framework": "^13.17",
         "laravel/socialite": "^5.31",
-        "laravel/tinker": "^3.0"
+        "laravel/tinker": "^3.0",
+        "sprain/swiss-qr-bill": "^5.3"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

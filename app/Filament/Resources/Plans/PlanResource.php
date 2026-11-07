@@ -28,7 +28,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Offers that unlock features: of one service, or a bundle across services. Admins assign them to
- * users (no payments yet).
+ * users; plans with a price are billed (App\Billing\Billing).
  */
 class PlanResource extends Resource
 {
@@ -78,12 +78,11 @@ class PlanResource extends Resource
                     Toggle::make('active')->label(__('Can be assigned'))->helperText(__('Existing subscriptions keep running when it is turned off.'))->default(true),
                 ]),
             Section::make(__('Price'))
-                ->description(__('For the invoices of a later phase; nothing is billed yet.'))
+                ->description(__('Subscriptions of plans with a price and an interval are billed in advance for each period from their start; changes apply to the next invoices.'))
                 ->columns(3)
-                ->collapsed()
                 ->schema([
                     TextInput::make('price_cents')->label(__('Price in cents'))->numeric()->minValue(0)->integer(),
-                    TextInput::make('currency')->label(__('Currency'))->placeholder('CHF')->length(3),
+                    TextInput::make('currency')->label(__('Currency'))->placeholder(fn (): string => config('billing.currency', 'CHF'))->length(3)->helperText(__('Only CHF and EUR get a payment slip.')),
                     Select::make('interval')->label(__('Interval'))->options(PlanInterval::class),
                 ]),
         ]);

@@ -14,12 +14,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
- * A plan assigned to a user by an admin (no payments yet). It unlocks the plan's features while it
- * is active and between starts_at and ends_at.
+ * A plan assigned to a user by an admin. It unlocks the plan's features while it is active and
+ * between starts_at and ends_at; plans with a price are billed per period (billed_periods counts the
+ * periods already on an invoice, App\Billing\BillingPeriod).
  *
  * @property SubscriptionStatus $status
  * @property Carbon $starts_at
  * @property Carbon|null $ends_at
+ * @property int $billed_periods
  */
 #[ObservedBy(EntitlementSourceObserver::class)]
 class Subscription extends Model
@@ -27,13 +29,14 @@ class Subscription extends Model
     /** @use HasFactory<SubscriptionFactory> */
     use HasFactory;
 
-    protected $fillable = ['user_id', 'plan_id', 'status', 'starts_at', 'ends_at', 'note', 'created_by'];
+    protected $fillable = ['user_id', 'plan_id', 'status', 'starts_at', 'ends_at', 'billed_periods', 'note', 'created_by'];
 
     /**
      * @var array<string, mixed>
      */
     protected $attributes = [
         'status' => 'active',
+        'billed_periods' => 0,
     ];
 
     /**
@@ -45,6 +48,7 @@ class Subscription extends Model
             'status' => SubscriptionStatus::class,
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
+            'billed_periods' => 'integer',
         ];
     }
 

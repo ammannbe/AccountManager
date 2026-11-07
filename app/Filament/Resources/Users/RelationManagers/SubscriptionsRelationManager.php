@@ -24,7 +24,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Plans an admin assigned to the user (no payments yet).
+ * Plans an admin assigned to the user; plans with a price are billed per period.
  */
 class SubscriptionsRelationManager extends RelationManager
 {
@@ -62,6 +62,7 @@ class SubscriptionsRelationManager extends RelationManager
                 IconColumn::make('effective')->label(__('Effective'))->boolean()->state(fn (Subscription $record): bool => $record->isEffective()),
                 TextColumn::make('starts_at')->label(__('Starts'))->dateTime(),
                 TextColumn::make('ends_at')->label(__('Ends'))->dateTime()->placeholder('–'),
+                TextColumn::make('billed_periods')->label(__('Billed periods'))->toggleable(isToggledHiddenByDefault: true),
             ])
             ->headerActions([
                 CreateAction::make()
