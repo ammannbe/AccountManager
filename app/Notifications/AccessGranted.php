@@ -33,6 +33,11 @@ class AccessGranted extends Notification implements ShouldQueue
             ->subject(__('Access granted: :service', ['service' => $service->name]))
             ->line(__('You now have access to :service.', ['service' => $service->name]));
 
+        // The invitation follows in its own mail; the service cannot be used before.
+        if ($service->connector === 'wizarr') {
+            return $mail->line(__('You will get an invitation to create your account there in a separate mail.'));
+        }
+
         return $service->url ? $mail->action(__('Open :service', ['service' => $service->name]), $service->url) : $mail;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Services\Pages;
 
+use App\Filament\Resources\Services\Schemas\ServiceForm;
 use App\Filament\Resources\Services\ServiceResource;
 use App\Models\Service;
 use Filament\Actions\Action;
@@ -13,6 +14,30 @@ use Filament\Support\Icons\Heroicon;
 class EditService extends EditRecord
 {
     protected static string $resource = ServiceResource::class;
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        /** @var Service $record */
+        $record = $this->getRecord();
+
+        return ServiceForm::fillConnector($data, $record);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        /** @var Service $record */
+        $record = $this->getRecord();
+
+        return ServiceForm::saveConnector($data, $record);
+    }
 
     protected function getHeaderActions(): array
     {

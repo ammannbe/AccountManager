@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Services\Tables;
 
+use App\Connectors\ConnectorRegistry;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -18,6 +19,11 @@ class ServicesTable
                 TextColumn::make('name')->label(__('Name'))->searchable(),
                 TextColumn::make('key')->label(__('Key'))->searchable(),
                 TextColumn::make('type')->label(__('Type'))->badge(),
+                TextColumn::make('connector')
+                    ->label(__('Connector'))
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => app(ConnectorRegistry::class)->options()[$state] ?? $state)
+                    ->toggleable(),
                 TextColumn::make('access_group')->label(__('Group')),
                 IconColumn::make('self_signup')->label(__('Self-registration'))->boolean(),
                 IconColumn::make('requires_approval')->label(__('Requires approval'))->boolean(),
