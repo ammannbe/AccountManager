@@ -281,7 +281,8 @@ Die App speichert pro gespiegeltem Haushalt `konto_household_uuid` und `konto_ve
 4. **Unbekannte Haushalte:** Kommt ein Ereignis (ausser `household.deleted`) für eine unbekannte `uuid`, holt die App den Stand mit 3.3 und wendet die API-Antwort an; bei `404` wird nichts angelegt. So entstehen keine Haushalte aus veralteten Ereignissen nach einer Löschung. (Optional: Grabstein mit `uuid` und letzter Version statt des API-Aufrufs.)
 5. **API-Antworten** (3.2, 3.3) sind massgebend und werden angewendet, wenn ihre `version` grösser oder gleich `konto_version` ist.
 6. **Periodischer Abgleich** (z. B. täglich): 3.2 für alle User mit `oidc_sub`, gespiegelte Haushalte ohne Treffer mit 3.3 prüfen. Damit heilen verlorene Webhooks und Haushalte, die den Dienst nicht mehr betreffen.
-7. **Nach dem Anwenden** die app-spezifischen Folgen auslösen, z. B. in den PWAs die betroffenen Listen für alle (auch entfernte) Mitglieder neu synchronisieren (`syncHouseholdMembers()`/`touchForMembers()`).
+7. **Entfernte Mitglieder:** Empfehlung: Verschwindet ein Mitglied aus dem Snapshot (entfernt oder ausgetreten), hebt die App die Freigaben seiner eigenen Inhalte (z. B. Kochbücher, Listen, deren Eigentümer es ist) für diesen Haushalt auf; die Inhalte bleiben bei ihm. So verhalten sich RecipeManager, Shoppinglist und Chorelist; das Konto weist im Portal beim Entfernen und Verlassen darauf hin.
+8. **Nach dem Anwenden** die app-spezifischen Folgen auslösen, z. B. in den PWAs die betroffenen Listen für alle (auch entfernte) Mitglieder neu synchronisieren (`syncHouseholdMembers()`/`touchForMembers()`).
 
 ## 6. Verhalten bei Ausfall des Kontos
 

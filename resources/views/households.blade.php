@@ -73,7 +73,7 @@
                                         </select>
                                         <noscript><button type="submit" class="underline">{{ __('Save') }}</button></noscript>
                                     </form>
-                                    <form method="POST" action="{{ route('households.members.destroy', [$household, $member]) }}" onsubmit="return confirm(@js(__('Remove :name from the household?', ['name' => $member->name])))">
+                                    <form method="POST" action="{{ route('households.members.destroy', [$household, $member]) }}" onsubmit="return confirm(@js(__('Remove :name from the household? They lose access to everything shared with the household in all connected apps, and their own contents (e.g. cookbooks, lists) are no longer shared with it; the contents stay with them.', ['name' => $member->name])))">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-red-700 underline">{{ __('Remove') }}</button>
@@ -138,7 +138,7 @@
                 @endif
 
                 <div class="mt-4 flex flex-wrap gap-4 text-sm">
-                    <form method="POST" action="{{ route('households.members.destroy', [$household, auth()->user()]) }}" onsubmit="return confirm(@js(__('Leave the household? You lose access to everything shared with it.')))">
+                    <form method="POST" action="{{ route('households.members.destroy', [$household, auth()->user()]) }}" onsubmit="return confirm(@js(__('Leave the household? You lose access to everything shared with it in all connected apps, and your own contents (e.g. cookbooks, lists) are no longer shared with it; the contents stay with you.')))">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="underline">{{ __('Leave household') }}</button>
