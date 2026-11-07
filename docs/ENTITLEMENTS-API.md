@@ -8,7 +8,7 @@ Das Konto (AccountManager) ist die Quelle der Wahrheit dafür, was ein User in e
 
 Im Admin-Bereich des Kontos:
 
-1. **Dienste → Dienst bearbeiten:** Webhook-URL und Secret wie in `HOUSEHOLDS-API.md`, Abschnitt 1 (eine URL und ein Secret pro Dienst für alle Ereignisse). Optional **Admin-Gruppe** (z. B. `svc-recipes-admin`), falls die App das Admin-Recht aus dem `groups`-Claim liest.
+1. **Dienste → Dienst bearbeiten:** Webhook-URL und Secret wie in `HOUSEHOLDS-API.md`, Abschnitt 1 (eine URL und ein Secret pro Dienst für alle Ereignisse). Optional **Admin-Gruppe** (z. B. `svc-recipes-admin`) als zusätzliche Information beim Anmeldedienst (z. B. für Regeln in Pocket ID). Mit `AUTH_ADMIN_SOURCE=account-manager` liest die App das Admin-Recht **nicht** aus dem `groups`-Claim, sondern aus dem Feld `admin` des Snapshots (Abschnitt 3).
 2. **Dienste → Funktionen:** Funktionen anlegen. Der **Schlüssel** geht an die App und bleibt stabil (Konvention `<dienst>.<name>`, z. B. `shoppinglist.ai`; erlaubt sind Kleinbuchstaben, Ziffern und `.`, `-`, `_` als Trenner). Optional eine **Gruppe** (z. B. `feat-shoppinglist-ai`), die User mit der Funktion beim Anmeldedienst erhalten.
 3. **Pläne:** Plan mit Funktionen eines Dienstes oder als Bündel über mehrere Dienste. Preisfelder sind für die spätere Abrechnung vorgesehen; Rechnungen gibt es noch nicht.
 4. **User → User bearbeiten:**
@@ -36,7 +36,7 @@ Für einen User und einen Dienst gilt:
   - Ein Bündel-Plan schaltet in jedem Dienst nur dessen eigene Funktionen frei.
 - **Admin** = Zugang ist aktiv **und** im Konto als «Admin im Dienst» markiert. Unabhängig von den Funktionen.
 - **Nur mit aktivem Zugang:** Ist der Zugang `requested` oder `suspended` (oder fehlt er), sind `features` leer und `admin` ist `false`, auch wenn Abos oder direkte Freischaltungen bestehen.
-- **Gruppen beim Anmeldedienst** (für Apps, die den Token lesen): Aktive Zugänge erhalten die Zugangsgruppe (`access_group`), Admins zusätzlich die Admin-Gruppe (`admin_group`), dazu die Gruppen der wirksamen Funktionen. Das Konto verwaltet nur diese Gruppen; andere Gruppen eines Users bleiben unberührt. Gruppen im Token gelten erst ab dem nächsten Login; massgebend für laufende Sitzungen sind Webhook und API.
+- **Gruppen beim Anmeldedienst** (für Apps, die den Token lesen): Aktive Zugänge erhalten die Zugangsgruppe (`access_group`), Admins zusätzlich die Admin-Gruppe (`admin_group`), dazu die Gruppen der wirksamen Funktionen. Das Konto verwaltet nur diese Gruppen; andere Gruppen eines Users bleiben unberührt. Gruppen im Token gelten erst ab dem nächsten Login; massgebend für die Apps sind Webhook und API (auch für das Admin-Recht).
 - **Lokale User ohne Identität** (ohne `oidc_sub`, z. B. Notfall-Admins) kennt die App nicht über das Konto: Für sie gibt es weder Ereignisse noch API-Antworten. Sie erhalten in der App die lokal konfigurierten Standardrechte; lokale Notfall-Admins bleiben immer Admin.
 
 ## 3. Datenmodell aus Sicht der App («Snapshot»)
@@ -58,7 +58,7 @@ Jede Antwort und jedes Ereignis enthält den vollständigen aktuellen Stand eine
 |---|---|
 | `sub` | `oidc_sub` des Users (User-ID beim Anmeldedienst). Die App ordnet darüber ihren lokalen User zu. |
 | `service` | Schlüssel des Dienstes im Konto (zur Kontrolle; immer der eigene). |
-| `status` | Zugang im Konto: `active`, `requested` (beantragt, noch nicht freigegeben), `suspended` (gesperrt) oder `none` (kein Zugang mehr, z. B. vom Admin entfernt). |
+| `status` | Zugang im Konto: `active`, `requested` (beantragt, noch nicht freigegeben), `suspended` (gesperrt) oder `none` (kein Zugang mehr, z. B. vom Admin entfernt). Unbekannte Werte (spätere Erweiterungen) behandelt die App wie `none`. |
 | `admin` | `true`, wenn der User in der App Admin sein soll (nur bei `status = active`). |
 | `features` | Schlüssel der freigeschalteten Funktionen (nur bei `status = active`, sonst `[]`). Unbekannte Schlüssel ignoriert die App. |
 | `version` | Ganzzahl pro User **und** Dienst, steigt bei jeder Änderung des Snapshots um 1. Grundlage für Reihenfolge und Idempotenz (Abschnitt 6). |
@@ -140,6 +140,7 @@ Gemeinsames Format:
 ```
 
 - **Empfänger:** nur der betroffene Dienst (ein Ereignis pro Dienst, jedes mit eigener `event_id`), und nur, wenn der User dort einen Zugang hat oder hatte und eine Identität (`oidc_sub`) besitzt.
+- **Fremder Dienst:** Stimmt `service` nicht mit dem eigenen Schlüssel (`ACCOUNT_MANAGER_SERVICE_KEY`) überein, wendet die App nichts an und antwortet `422`. Das Konto behandelt das wie jede Antwort ausser `2xx`: Es protokolliert Status und Antwort in der Zustellung und wiederholt nach der normalen Regel (alle Antworten ausser `2xx`, auch `4xx`, insgesamt 8 Versuche, danach «fehlgeschlagen»; `HOUSEHOLDS-API.md` 4.1). Ein solcher Fehler deutet auf eine falsch eingetragene Webhook-URL hin und fällt im Protokoll unter **Webhooks** auf.
 - **Auslöser:** jede Änderung, die den Snapshot dieses Dienstes ändert, u. a.
   - Zugang erstellt, beantragt, freigegeben, gesperrt, reaktiviert, gelöscht (`status: "none"`), «Admin im Dienst» geändert;
   - Abo zugewiesen, geändert, gesperrt, reaktiviert, beendet oder abgelaufen; Abo beginnt (Scheduler, siehe unten);
@@ -177,15 +178,26 @@ Spätere Ereignistypen mit `2xx` quittieren und ignorieren.
 
 ## 6. Reihenfolge und Idempotenz
 
-Die App speichert pro lokalem User (mit `oidc_sub`) die zuletzt angewendeten Werte: `account_manager_status`, `account_manager_admin`, `account_manager_features` (JSON), `account_manager_entitlements_version`, optional `account_manager_entitlements_synced_at`.
+Die App speichert pro lokalem User (mit `oidc_sub`) die zuletzt angewendeten Werte. Referenz ist eine eigene Tabelle `user_entitlements` (statt Spalten auf `users`):
+
+| Spalte | Inhalt |
+|---|---|
+| `user_id` | lokaler User (eindeutig, Fremdschlüssel, beim Löschen des Users mitlöschen) |
+| `status` | `active`, `requested`, `suspended` oder `none` |
+| `admin` | bool |
+| `features` | JSON-Liste der Schlüssel |
+| `version` | zuletzt angewendete Version (nullable, solange nur ein `404` bekannt ist) |
+| `synced_at` | Zeitpunkt des letzten Abgleichs (optional) |
 
 1. **Snapshot statt Delta:** Jedes `entitlements.changed` und jede API-Antwort ersetzt den gespeicherten Stand vollständig.
-2. **Veraltete ignorieren:** Ist `version` **kleiner oder gleich** der gespeicherten Version, wird das Ereignis ignoriert (trotzdem `2xx`). API-Antworten werden angewendet, wenn `version` **grösser oder gleich** ist.
-3. **Versionen laufen weiter:** Wird ein Zugang gelöscht und später neu erstellt, setzt das Konto die Version fort; eine App sieht für denselben User nie wieder eine kleinere Nummer.
-4. **`404` der API** = kein Zugang: Status `none` setzen (Funktionen leer, kein Admin), Version unverändert lassen.
-5. **Unbekannte `sub`** im Ereignis (User hat die App noch nie benutzt): Snapshot merken (z. B. Tabelle `account_manager_pending_entitlements`) und beim ersten Login anwenden, oder beim Login einfach 4.1 aufrufen.
-6. **`event_id`** wie bei den Haushalten einige Tage merken und Doppelte ohne erneute Verarbeitung quittieren.
-7. **Nach dem Anwenden** laufende Sitzungen prüfen: Bei `status != active` die Sitzungen des Users beenden bzw. die App sperren; bei entzogener Funktion die Funktion sofort ausblenden (in PWAs beim nächsten Sync).
+2. **API-Antworten sind massgebend:** Eine Antwort von 4.1 wird **immer** angewendet, unabhängig von der gespeicherten Version, und setzt die gespeicherte Version auf ihre `version` (auch wenn sie kleiner ist). Das deckt z. B. eine Wiederherstellung des Kontos aus einem Backup ab, nach der die Versionen wieder tiefer liegen.
+3. **Webhooks nur mit höherer Version:** Ein `entitlements.changed` wird nur angewendet, wenn `version` **grösser** als die gespeicherte Version ist (oder noch keine gespeichert ist); sonst wird es ignoriert (trotzdem `2xx`). Im Zweifel (z. B. nach einem Backup des Kontos) gleicht der periodische Abgleich über 4.1 aus.
+4. **Versionen laufen weiter:** Wird ein Zugang gelöscht und später neu erstellt, setzt das Konto die Version fort; im Normalbetrieb sieht eine App für denselben User nie wieder eine kleinere Nummer (Ausnahme: Wiederherstellung aus einem Backup, siehe 2).
+5. **`404` der API** = kein Zugang: Status `none` setzen (Funktionen leer, kein Admin), Version unverändert lassen.
+6. **Unbekannter `status`:** wie `none` behandeln (keine Funktionen, kein Admin), Version trotzdem übernehmen.
+7. **Unbekannte `sub`** im Ereignis (User hat die App noch nie benutzt): Snapshot merken (z. B. Tabelle `account_manager_pending_entitlements`) und beim ersten Login anwenden, oder beim Login einfach 4.1 aufrufen.
+8. **`event_id`** wie bei den Haushalten einige Tage merken und Doppelte ohne erneute Verarbeitung quittieren.
+9. **Nach dem Anwenden** laufende Sitzungen prüfen: Bei `status != active` die Sitzungen des Users beenden bzw. die App sperren; bei entzogener Funktion die Funktion sofort ausblenden (in PWAs beim nächsten Sync).
 
 **Prüfung in der App** (Empfehlung):
 
@@ -202,11 +214,11 @@ Die App speichert pro lokalem User (mit `oidc_sub`) die zuletzt angewendeten Wer
 
 ## 8. Checkliste für eine App
 
-- [ ] Spalten bzw. Tabelle für den gespeicherten Stand (Abschnitt 6).
+- [ ] Tabelle `user_entitlements` für den gespeicherten Stand (Abschnitt 6).
 - [ ] `.env`: `ENTITLEMENTS_DRIVER=account-manager`, optional `AUTH_ADMIN_SOURCE=account-manager`, `ACCOUNT_MANAGER_URL`, `ACCOUNT_MANAGER_SERVICE_KEY`, `ACCOUNT_MANAGER_SECRET`; im Konto Webhook-URL, Secret, Funktionen und ggf. Admin-Gruppe gesetzt.
 - [ ] Webhook-Route (dieselbe wie für die Haushalte) verarbeitet `entitlements.changed` und `user.deleted`, Signaturprüfung nach `HOUSEHOLDS-API.md` 4.3, Antwort `2xx`.
 - [ ] Beim OIDC-Login 4.1 aufrufen und anwenden.
 - [ ] Täglicher Abgleich (Scheduler).
 - [ ] Prüfung bei jeder geschützten Aktion aus dem gespeicherten Stand (nicht nur aus dem Token).
 - [ ] `user.deleted`: private Inhalte löschen, geteilte nach App-Einstellung übertragen oder löschen, User löschen.
-- [ ] Tests: Signatur, veraltete Version, `status` `suspended`/`none`, Admin-Flag mit beiden `AUTH_ADMIN_SOURCE`, `404` der API, `user.deleted` (auch doppelt und für unbekannte `sub`), Verhalten bei nicht erreichbarem Konto.
+- [ ] Tests: Signatur, veraltete Version (Webhook ignoriert, API-Antwort mit kleinerer Version angewendet), fremder `service` (`422`), unbekannter `status`, `status` `suspended`/`none`, Admin-Flag mit beiden `AUTH_ADMIN_SOURCE`, `404` der API, `user.deleted` (auch doppelt und für unbekannte `sub`), Verhalten bei nicht erreichbarem Konto.

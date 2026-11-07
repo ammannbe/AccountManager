@@ -206,7 +206,7 @@ Für RecipeManager, Shoppinglist und Chorelist gleich aufgebaut, alles über `.e
 | `AUTH_LOCAL_REGISTRATION` | Lokale Selbstregistrierung | `true` |
 | `AUTH_OIDC_ENABLED`, `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET`, `AUTH_OIDC_LABEL` | «Anmelden mit …» | aus |
 | `AUTH_OIDC_REQUIRED_GROUP` | Zusätzliche Prüfung des `groups`-Claims | leer |
-| `AUTH_ADMIN_SOURCE` | Admin-Rechte `local` (in der App) oder `account-manager` (Gruppe `admin_group`, z. B. `svc-recipes-admin`); lokale Notfall-Admins bleiben immer Admin | `local` |
+| `AUTH_ADMIN_SOURCE` | Admin-Rechte `local` (in der App) oder `account-manager` (Feld `admin` des Freischaltungs-Snapshots aus API und Webhook, siehe [`ENTITLEMENTS-API.md`](ENTITLEMENTS-API.md); die Gruppe `admin_group`, z. B. `svc-recipes-admin`, ist nur eine zusätzliche Information beim Anmeldedienst, z. B. für die Login-Einschränkung in Pocket ID); lokale Notfall-Admins bleiben immer Admin | `local` |
 | `ENTITLEMENTS_DRIVER` | `local` oder `account-manager` | `local` |
 | `HOUSEHOLDS_DRIVER` | `local` oder `account-manager` | `local` |
 
@@ -289,7 +289,7 @@ In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistr
 - **Zahlungsverzug:** keine automatische Sperre. Benachrichtigung an den Admin, Sperre von Hand mit vordefinierter oder eigener Begründung, E-Mail an den User (siehe 5.4).
 
 - **Account löschen:** Das Konto schickt `user.deleted`; jede App löscht den User und seine privaten Inhalte, geteilte Inhalte gehen je nach App-Einstellung an einen anderen Haushalts-Admin über oder werden gelöscht.
-- **Admin-Rechte in den Apps:** standardmässig lokal. Optional zentral über das Konto (`AUTH_ADMIN_SOURCE=account-manager`, Gruppe pro Dienst).
+- **Admin-Rechte in den Apps:** standardmässig lokal. Optional zentral über das Konto (`AUTH_ADMIN_SOURCE=account-manager`: massgebend ist das Feld `admin` des Freischaltungs-Snapshots, nicht die Gruppe im Token; siehe 6).
 - **E-Mail-Versand:** standardmässig derselbe SMTP-Server wie die Apps, pro Dienst im Konto überschreibbar (`mailers`).
 - **Identitätsanbieter im AccountManager:** austauschbare Schnittstelle `IdentityProvider`, zuerst nur mit Pocket ID umgesetzt. Ohne passenden Treiber läuft ein reduzierter Betrieb: Login per OIDC, Zugänge und Gruppen pflegt der Admin von Hand im Identitätsanbieter; Abos, Rechnungen und Haushalte funktionieren weiter. Weitere Treiber (z. B. Authentik) erst bei konkretem Bedarf.
 
