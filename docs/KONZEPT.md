@@ -1,6 +1,6 @@
 # Konzept: AccountManager (SSO, Dienste, Abos, Haushalte)
 
-Stand: 2026-11-07 · Status: Phasen 1–5 umgesetzt (Phase 4 als MVP); Phase 7 und Phase 8 (Konto-Teil) umgesetzt; Phase 6a (Freischaltungen ohne Rechnungen, Konto-Teil) auf Branch `feature/entitlements`
+Stand: 2026-11-07 · Status: Phasen 1–5 umgesetzt (Phase 4 als MVP); Phase 7, Phase 8 und Phase 6a/6b (je Konto-Teil) umgesetzt; Phase 9 (externe Dienste: Konnektoren, Wizarr, Nextcloud/Forgejo) auf Branch `feature/external-services`
 
 **Namen:** Die zentrale App heisst **AccountManager** (Repo und Projektordner), für User erscheint sie als «Konto» unter `konto.<domain>`. Pocket ID läuft unter `login.<domain>`. Im Text steht «Konto» für den AccountManager.
 
@@ -75,9 +75,10 @@ Anders als die Apps braucht der AccountManager einen Identitätsanbieter mit Adm
 | Tabelle | Zweck | Wichtige Felder |
 |---|---|---|
 | `users` | Spiegel der Pocket-ID-User plus Profil | `oidc_sub`, `email`, `name`, `birthday` (optional), `address` (für Rechnungen; 6b: `billing_name`, `billing_street`, `billing_postal_code`, `billing_city`, `billing_country`), `locale` |
-| `services` | Dienstekatalog | `key` (z. B. `recipes`), `name`, `url`, `type` (`oidc`, `external`), `pocket_client_id`, `access_group`, `admin_group` (optional, umgesetzt in 6a), `self_signup` (bool), `signup_requires_approval` (bool), `connector` (z. B. `emby`, `manual`), `mailer_id` (optional), `visible` |
+| `services` | Dienstekatalog | `key` (z. B. `recipes`), `name`, `url`, `type` (`oidc`, `external`), `pocket_client_id`, `access_group`, `admin_group` (optional, umgesetzt in 6a), `self_signup` (bool), `signup_requires_approval` (bool), `connector` (`oidc-group` = Standard, `wizarr`, `manual`; Phase 9) mit `connector_config` (verschlüsseltes JSON: URL, API-Schlüssel, Optionen), `mailer_id` (optional), `visible` |
 | `mailers` | E-Mail-Versand pro Dienst | `name`, SMTP-Host, Port, Benutzer, Passwort (verschlüsselt), Absender; ohne Zuordnung gilt der Standard aus `.env` |
-| `service_accounts` | Zugang eines Users zu einem Dienst | `user_id`, `service_id`, `status` (`requested`, `active`, `suspended`), `is_admin` (Admin in der App, 6a), `external_id`, `external_username`, `notes` |
+| `service_accounts` | Zugang eines Users zu einem Dienst | `user_id`, `service_id`, `status` (`requested`, `active`, `suspended`), `is_admin` (Admin in der App, 6a), `external_id` (z. B. Wizarr-User-ID, 9), `external_username`, `connector_data` (verschlüsseltes JSON des Konnektors, z. B. offene Einladung, 9), `notes` |
+| `connector_runs` | Protokoll der Konnektor-Aufrufe (Phase 9) | `service_id`, `service_account_id` und `user_id` (bleiben leer nach dem Löschen), `connector`, `action` (`provision`, `suspend`, `resume`, `deprovision`, `check`), `status` (`pending`, `succeeded`, `manual`, `skipped`, `failed`), `attempts`, `message`, `snapshot` (verschlüsselt: User und externe Daten für das Entfernen), `finished_at` |
 | `features` | Freischaltbare Funktionen | `service_id`, `key` (z. B. `shoppinglist.ai`, eindeutig pro Dienst), `name`, `description`, `group` (optional, z. B. `feat-shoppinglist-ai`) |
 | `plans` | Angebote | `service_id` (leer = Bündel), `name`, `description`, `price_cents`, `currency`, `tax_rate_id`, `prices_include_tax` (bool), `interval` (`month`, `year`, `once`), `active` (6a: ohne `tax_rate_id`/`prices_include_tax`, Preise noch ungenutzt) |
 | `tax_rates` | MWST-Sätze (konfigurierbar, auch «keine MWST») | `name`, `rate`, `active` |
@@ -141,6 +142,13 @@ Umsetzung im Konto (Phase 6a): Freischaltungen pro User und Dienst = Funktionen 
   - `wizarr` (später): Medienserver (Emby, Jellyfin, Plex u. a.) laufen über [Wizarr](https://github.com/wizarrrr/wizarr) statt über eine eigene Emby-Anbindung. Wizarr legt User per Einladungslink automatisch auf dem Medienserver an und unterstützt zeitlich begrenzte Mitgliedschaften und eine REST-API. Zuerst verlinkt das Konto nur auf Wizarr bzw. zeigt dem User einen vom Admin erstellten Einladungslink; später erstellt das Konto Einladungen und sperrt User über die Wizarr-API (Umfang der API vor der Umsetzung prüfen).
 - Konnektoren als Interface (`provision`, `suspend`, `deprovision`), damit weitere Dienste ohne Umbau dazukommen.
 
+**Umgesetzt (Phase 9):**
+
+- Interface `App\Connectors\ServiceConnector` (`provision`, `suspend`, `resume`, `deprovision`, `status`), Auswahl pro Dienst über `services.connector` (`ConnectorRegistry`): `oidc-group` (Standard, nur der Gruppen-Abgleich wie bisher, keine Aufrufe), `wizarr`, `manual`. Einstellungen pro Dienst verschlüsselt in `connector_config`, im Admin-Bereich beim Dienst; der API-Schlüssel geht nie an den Browser.
+- Lebenszyklus: Zugang aktiv (freigegeben, aktiv angelegt, Selbstregistrierung) → `provision`, gesperrt → `suspend`, entsperrt → `resume`, Zugang entfernt oder User gelöscht → `deprovision` (aus einem verschlüsselten Snapshot, weil Zugang und User dann fehlen). Jeder Aufruf ist ein Eintrag in `connector_runs` und läuft über die Queue (`RunConnector`, 6 Versuche über rund 5 Stunden; Konfigurationsfehler sofort). Endgültige Fehler mailen den Admins (`ConnectorFailed`); «Erneut versuchen» im Konnektor-Protokoll und beim Zugang. Veraltete Aufrufe (Status inzwischen anders) werden übersprungen.
+- `manual`: Die Admins erhalten bei jedem Schritt eine Mail (`ManualSetupNeeded` mit Aktion); optionale Hinweise für die User erscheinen im Portal.
+- `wizarr`: Einladung für eine Nutzung (Server, Bibliotheken, Gültigkeit aus den Einstellungen), Link per Mail (`ExternalInvitation`) und im Portal bis zur Nutzung; `connectors:check` (alle 15 Minuten) erkennt eingelöste und abgelaufene Einladungen und speichert die Wizarr-User-ID; Sperren deaktiviert den User bzw. widerruft die offene Einladung, Entsperren aktiviert ihn (oder lädt neu ein, falls Wizarr ihn gelöscht hat), Entfernen löscht User und Einladung. API-Annahmen und Einrichtung: [`docs/wizarr.md`](wizarr.md).
+
 ### 5.6 Haushalte
 
 Ziel: Ein Haushalt (z. B. «Familie Muster») teilt app-übergreifend Inhalte, z. B. ein Kochbuch im RecipeManager, zwei Einkaufslisten in der Shoppinglist und später eine Liste mit Haushaltsaufgaben in einer weiteren App. Wer dem Haushalt beitritt, sieht alles automatisch; wer austritt, verliert den Zugriff überall.
@@ -196,6 +204,7 @@ Ziel: Ein Haushalt (z. B. «Familie Muster») teilt app-übergreifend Inhalte, z
 
 - Beide per OIDC an Pocket ID, Zugang nur mit Gruppe (`svc-nextcloud`, `svc-forgejo`), keine Selbstregistrierung.
 - Nextcloud: App `user_oidc`. Forgejo: OAuth2-Authentifizierungsquelle. Wie sich dort die Anmeldung auf eine Gruppe einschränken lässt und wie bestehende Accounts verknüpft werden, ist vor der Umsetzung zu prüfen.
+- **Geprüft (Phase 9):** Kein eigener Konnektor, Standard `oidc-group`: Pocket ID lässt pro Client nur die erlaubten Gruppen zu; Nextcloud prüft zusätzlich mit `--group-restrict-login-to-whitelist`, Forgejo mit «Required claim» `groups` = `svc-forgejo`. Benutzer-ID in Nextcloud aus `sub` oder einem Custom Claim, nicht aus `preferred_username` (Übernahme fremder Konten möglich); Forgejo verknüpft bestehende Konten mit `ACCOUNT_LINKING = login`. Gesperrt wird nur beim nächsten Login; laufende Sitzungen, App-Passwörter (Nextcloud) sowie SSH und Tokens (Forgejo) laufen weiter, sofortige Sperre von Hand in der App. Anleitung: [`docs/nextcloud-forgejo.md`](nextcloud-forgejo.md).
 
 ## 6. Änderungen in den Apps
 
@@ -261,6 +270,8 @@ Jede Phase in einem eigenen Feature-Branch, mit Tests und einzeln deploybar.
 **Phase 6a, Konto-Teil (2026-11-07, Branch `feature/entitlements`, noch nicht gemergt):** Funktionen pro Dienst (Schlüssel wie `shoppinglist.ai`, optional Gruppe beim Anmeldedienst), Pläne pro Dienst oder als Bündel (Preisfelder für später), Abos von Hand mit Beginn und Ende, direkt freigeschaltete Funktionen, «Admin im Dienst» pro Zugang mit optionaler Admin-Gruppe (`admin_group`). Wirksame Freischaltungen nur bei aktivem Zugang, versionierte Snapshots pro User und Dienst, Webhooks `entitlements.changed` und `user.deleted`, API `GET /api/entitlements/{sub}`, Gruppen-Abgleich um Admin- und Funktionsgruppen erweitert, `entitlements:refresh` alle 15 Minuten (Beginn und Ende von Abos). Sperren und Entsperren von Zugängen und Abos mit Begründung per E-Mail. Portal «Meine Dienste» zeigt aktive Pläne und freigeschaltete Funktionen. Vertrag: [`docs/ENTITLEMENTS-API.md`](ENTITLEMENTS-API.md). Offen: die App-Seite (`ENTITLEMENTS_DRIVER`/`AUTH_ADMIN_SOURCE=account-manager`, KI-Freischaltung in der Shoppinglist); Rechnungen siehe Phase 6b.
 
 **Phase 6b, Konto-Teil (2026-11-07, Branch `feature/entitlements`, noch nicht gemergt):** Rechnungen mit Swiss QR-Bill (`sprain/swiss-qr-bill`, PDF mit `dompdf/dompdf`). Gläubiger und Einstellungen über `BILLING_*`; ohne IBAN bleibt die Abrechnung aus. Rechnungslauf täglich (Perioden ab Abo-Beginn im Voraus, Nummern pro Jahr fortlaufend, Referenz QRR mit QR-IBAN bzw. SCOR, Snapshots von Empfänger und Gläubiger), PDF per E-Mail, Zahlungen von Hand, überfällige Rechnungen mit Benachrichtigung der Admins und einer Erinnerung, Stornieren statt Löschen (10 Jahre). Portal «Rechnungen», Rechnungsadresse im Profil und im Admin-Bereich. Später: Import camt.054 mit Abgleich über die Referenz.
+
+**Phase 9 (2026-11-07, Branch `feature/external-services`, noch nicht gemergt):** Konnektoren für externe Dienste (Interface, Auswahl und verschlüsselte Einstellungen pro Dienst, Aufrufe über die Queue mit Protokoll, Wiederholungen, Mail an die Admins bei Fehlern, «Erneut versuchen»), Konnektor `manual` (Mail an die Admins pro Schritt, Hinweise im Portal) und `wizarr` für Emby (Einladung per Mail und im Portal, Erkennung der Einlösung, Deaktivieren/Aktivieren, Löschen), Portal «Meine Dienste» mit dem Stand im Dienst. Nextcloud und Forgejo über OIDC mit Gruppeneinschränkung ohne eigenen Konnektor (Anleitung). Offen: Wizarr-API gegen die installierte Version prüfen (`docs/wizarr.md`, Abschnitt 5); bei Bedarf Konnektoren für die sofortige Sperre in Nextcloud/Forgejo.
 
 In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistrierung. SSO wird dort nur mit von Hand angelegten Test- und Admin-Accounts genutzt; alle anderen User melden sich weiter lokal an. Ab Phase 5 wechseln bestehende User freiwillig (Abschnitt 7).
 
@@ -328,6 +339,15 @@ In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistr
 - **Snapshots:** Empfänger, Gläubiger und Positionen werden mit der Rechnung gespeichert; das PDF lässt sich jederzeit gleich neu erzeugen. Rechnungen werden nie gelöscht (auch nicht mit dem User), nur storniert.
 - **Verzug:** eine Benachrichtigung an die Admins pro Lauf, genau eine Erinnerung an den User; Sperren bleibt von Hand (Sprung von der Rechnung zum User).
 - **MWST:** vorerst kein Satz, nur ein optionaler Hinweis (`BILLING_VAT_NOTE`) und die MWST-Nummer; `tax_rates` folgt bei Bedarf.
+
+### Entschieden (2026-11-07, Phase 9)
+
+- **Konnektor pro Dienst** (`services.connector`) statt pro Typ; Standard `oidc-group` lässt bestehende Dienste unverändert (nur Gruppen-Abgleich, keine Protokolleinträge). Der Gruppen-Abgleich läuft für alle Konnektoren weiter.
+- **Einstellungen in der Datenbank** (`connector_config`, verschlüsselt) statt `.env`: pro Dienst verschieden, im Admin-Bereich pflegbar; der API-Schlüssel wird nur geschrieben, nie angezeigt.
+- **Auslöser im Observer** der Zugänge (Statuswechsel), beim Löschen des Users in `User::deleting` (die Zugänge gehen per Kaskade ohne Ereignisse). Requested-Zugänge waren nie eingerichtet und lösen nichts aus.
+- **Protokoll und Wiederholung** wie bei den Webhooks: eigene Tabelle `connector_runs`, Job mit wachsenden Abständen, endgültige Fehler per Mail an die Admins; erfolgreiche Einträge werden nach 90 Tagen gelöscht (`connectors:prune`), fehlgeschlagene bleiben.
+- **Wizarr:** Einladungen immer für eine Nutzung (`unlimited: false`); die Einlösung erkennt ein geplanter Abgleich (Wizarr hat keine Webhooks an das Konto); ohne Zuordnung trägt der Admin die Wizarr-User-ID von Hand ein. Sperren = Deaktivieren (Emby/Jellyfin unterstützen es); löscht Wizarr den User mangels Unterstützung, lädt das Entsperren neu ein.
+- **Nextcloud, Forgejo:** kein eigener Konnektor; Sperre über die Gruppe beim nächsten Login, sofortige Sperre von Hand (bekannte Grenze, siehe Anleitung).
 
 ### Offen
 

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Auth\OidcProvider;
+use App\Connectors\ConnectorRegistry;
 use App\Identity\IdentityProvider;
 use App\Identity\ManualIdentityProvider;
 use App\Identity\PocketIdProvider;
@@ -15,6 +16,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(ConnectorRegistry::class);
+
         $this->app->bind(IdentityProvider::class, fn (): IdentityProvider => match (config('identity.driver')) {
             'pocket-id' => new PocketIdProvider(
                 url: (string) config('identity.pocket_id.url'),

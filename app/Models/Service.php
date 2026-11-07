@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Connectors\ConnectorRegistry;
 use App\Enums\ServiceType;
 use App\Observers\ServiceObserver;
 use Database\Factories\ServiceFactory;
@@ -15,6 +16,8 @@ use SensitiveParameter;
 
 /**
  * @property ServiceType $type
+ * @property string $connector
+ * @property array<string, mixed>|null $connector_config
  * @property string|null $secret
  * @property Carbon|null $secret_created_at
  */
@@ -25,11 +28,18 @@ class Service extends Model
     use HasFactory;
 
     /**
-     * Set only through rotateSecret().
+     * The secret is set only through rotateSecret(); the connector config holds API keys.
      *
      * @var list<string>
      */
-    protected $hidden = ['secret'];
+    protected $hidden = ['secret', 'connector_config'];
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'connector' => ConnectorRegistry::DEFAULT,
+    ];
 
     protected $fillable = [
         'key',
@@ -39,6 +49,8 @@ class Service extends Model
         'login_url',
         'webhook_url',
         'type',
+        'connector',
+        'connector_config',
         'access_group',
         'admin_group',
         'self_signup',
@@ -54,6 +66,7 @@ class Service extends Model
     {
         return [
             'type' => ServiceType::class,
+            'connector_config' => 'encrypted:array',
             'self_signup' => 'boolean',
             'requires_approval' => 'boolean',
             'visible' => 'boolean',
@@ -74,6 +87,22 @@ class Service extends Model
     public function openUrl(): ?string
     {
         return $this->login_url ?: $this->url;
+    }
+
+    /**
+     * One value of the connector config (e.g. base_url of Wizarr).
+     */
+    public function connectorSetting(string $key, mixed $default = null): mixed
+    {
+        return data_get($this->connector_config ?? [], $key, $default);
+    }
+
+    /**
+     * @return HasMany<ConnectorRun, $this>
+     */
+    public function connectorRuns(): HasMany
+    {
+        return $this->hasMany(ConnectorRun::class);
     }
 
     /**

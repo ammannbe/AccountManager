@@ -28,7 +28,27 @@
                     </div>
 
                     @if ($account?->status === AccountStatus::Active)
-                        @if ($service->openUrl())
+                        @php $external = $externals->get($service->id); @endphp
+                        @if ($external)
+                            <div class="mb-3 text-sm">
+                                <p>
+                                    <span @class([
+                                        'badge',
+                                        'bg-green-100 text-green-800' => $external->color === 'success',
+                                        'bg-amber-100 text-amber-900' => $external->color === 'warning',
+                                        'bg-red-100 text-red-800' => $external->color === 'danger',
+                                        'bg-stone-100 text-stone-700' => $external->color === 'gray',
+                                    ])>{{ $external->label }}</span>
+                                </p>
+                                @if ($external->detail)
+                                    <p class="mt-1 whitespace-pre-line text-stone-600">{{ $external->detail }}</p>
+                                @endif
+                                @if ($external->url)
+                                    <div class="mt-2"><x-button :href="$external->url">{{ $external->urlLabel ?? __('Open') }}</x-button></div>
+                                @endif
+                            </div>
+                        @endif
+                        @if ($service->openUrl() && ! $external?->url)
                             <x-button :href="$service->openUrl()" secondary>{{ __('Open :service', ['service' => $service->name]) }}</x-button>
                         @endif
                         @if ($account->external_username)

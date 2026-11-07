@@ -2,11 +2,14 @@
 
 use App\Billing\Billing;
 use App\Billing\BillingException;
+use App\Connectors\Connectors;
 use App\Entitlements\Entitlements;
 use App\Enums\AccountStatus;
+use App\Enums\ConnectorRunStatus;
 use App\Enums\SubscriptionStatus;
 use App\Identity\IdentityProvider;
 use App\Jobs\SyncUserGroups;
+use App\Models\ConnectorRun;
 use App\Models\HouseholdInvitation;
 use App\Models\Registration;
 use App\Models\Service;
@@ -148,7 +151,31 @@ Artisan::command('billing:run', function (Billing $billing) {
     return 0;
 })->purpose('Create the invoices of due subscription periods, send them, mark overdue invoices and send reminders');
 
+Artisan::command('connectors:check', function (Connectors $connectors) {
+    $errors = $connectors->check();
+
+    foreach ($errors as $error) {
+        $this->error($error);
+    }
+
+    $this->info($errors === [] ? 'Checked the external services.' : 'Checked the external services, '.count($errors).' failed.');
+
+    return $errors === [] ? 0 : 1;
+})->purpose('Check the external services, e.g. which Wizarr invitations were redeemed');
+
+Artisan::command('connectors:prune', function () {
+    // Failed runs stay for the admins, everything else 90 days.
+    $pruned = ConnectorRun::query()
+        ->where('status', '!=', ConnectorRunStatus::Failed)
+        ->where('created_at', '<', now()->subDays(90))
+        ->delete();
+
+    $this->info("Pruned {$pruned} connector run(s).");
+})->purpose('Delete connector runs older than 90 days (failed runs are kept)');
+
 Schedule::command('entitlements:refresh')->everyFifteenMinutes();
+Schedule::command('connectors:check')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('connectors:prune')->daily();
 Schedule::command('billing:run')->dailyAt('06:00')->withoutOverlapping();
 Schedule::command('registrations:prune')->daily();
 Schedule::command('households:prune')->daily();

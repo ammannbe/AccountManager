@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Connectors\Connectors;
 use App\Entitlements\Entitlements;
 use App\Households\Households;
 use Database\Factories\UserFactory;
@@ -32,10 +33,12 @@ class User extends Authenticatable implements FilamentUser
     protected static function booted(): void
     {
         // Memberships go before the user, so the apps learn about it and every household keeps an
-        // admin; then every app the user had an account in gets user.deleted.
+        // admin; then every app the user had an account in gets user.deleted and the connectors
+        // remove the external accounts (the service accounts go by a cascade without events).
         static::deleting(function (User $user): void {
             app(Households::class)->forget($user);
             app(Entitlements::class)->userDeleted($user);
+            app(Connectors::class)->userDeleting($user);
         });
 
         // A new identity link makes the user visible to the apps (entitlements carry the sub).
