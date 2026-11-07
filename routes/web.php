@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\OidcController;
+use App\Http\Controllers\EasterEggController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\HouseholdInvitationController;
 use App\Http\Controllers\PortalController;
@@ -10,6 +11,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('login', [OidcController::class, 'login'])->middleware('guest')->name('login');
 Route::post('logout', [OidcController::class, 'logout'])->middleware('auth')->name('logout');
+
+// Public page the "All rights reserved." links of the mails (also of the other apps) lead to.
+Route::get('easter-egg', EasterEggController::class)->name('easter-egg');
 
 Route::middleware('throttle:20,1')->group(function () {
     Route::get('auth/oidc/redirect', [OidcController::class, 'redirect'])->name('oidc.redirect');
