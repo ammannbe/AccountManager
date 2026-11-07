@@ -42,7 +42,7 @@ class HouseholdWebhookTest extends TestCase
         parent::setUp();
 
         Notification::fake();
-        $this->recipes = Service::factory()->create(['key' => 'recipes', 'webhook_url' => 'https://recipes.example.com/api/konto/webhook']);
+        $this->recipes = Service::factory()->create(['key' => 'recipes', 'webhook_url' => 'https://recipes.example.com/api/account-manager/webhook']);
         $this->secret = $this->recipes->rotateSecret();
     }
 
@@ -80,7 +80,7 @@ class HouseholdWebhookTest extends TestCase
             $body = $request->body();
             $event = json_decode($body, true);
 
-            $this->assertSame('https://recipes.example.com/api/konto/webhook', $request->url());
+            $this->assertSame('https://recipes.example.com/api/account-manager/webhook', $request->url());
             $this->assertSame('household.created', $request->header(WebhookSignature::EVENT_HEADER)[0]);
             $this->assertSame($event['event_id'], $request->header(WebhookSignature::EVENT_ID_HEADER)[0]);
             $this->assertTrue(WebhookSignature::verify($this->secret, $request->header(WebhookSignature::TIMESTAMP_HEADER)[0], $body, $request->header(WebhookSignature::SIGNATURE_HEADER)[0]));

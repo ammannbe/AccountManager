@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
- * Switching an app from local households to the AccountManager (HOUSEHOLDS_DRIVER=konto): the app
+ * Switching an app from local households to the AccountManager (HOUSEHOLDS_DRIVER=account-manager): the app
  * proposes its local households, an admin of the AccountManager creates a new household from each
  * proposal or merges it into an existing one (or rejects it), and the app polls the mapping
  * local id → household uuid. Nothing is merged automatically.

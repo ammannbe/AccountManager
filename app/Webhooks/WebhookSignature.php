@@ -10,13 +10,13 @@ use SensitiveParameter;
  */
 class WebhookSignature
 {
-    public const TIMESTAMP_HEADER = 'X-Konto-Timestamp';
+    public const TIMESTAMP_HEADER = 'X-Account-Manager-Timestamp';
 
-    public const SIGNATURE_HEADER = 'X-Konto-Signature';
+    public const SIGNATURE_HEADER = 'X-Account-Manager-Signature';
 
-    public const EVENT_HEADER = 'X-Konto-Event';
+    public const EVENT_HEADER = 'X-Account-Manager-Event';
 
-    public const EVENT_ID_HEADER = 'X-Konto-Event-Id';
+    public const EVENT_ID_HEADER = 'X-Account-Manager-Event-Id';
 
     /**
      * Seconds a webhook stays valid for the receiver.

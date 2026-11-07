@@ -64,7 +64,7 @@ return new class extends Migration
             $table->unique(['household_id', 'service_id', 'resource_type', 'resource_id'], 'household_shares_resource_unique');
         });
 
-        // Local households an app proposes when it switches to HOUSEHOLDS_DRIVER=konto; an admin confirms them.
+        // Local households an app proposes when it switches to HOUSEHOLDS_DRIVER=account-manager; an admin confirms them.
         Schema::create('household_imports', function (Blueprint $table) {
             $table->id();
             $table->foreignId('service_id')->constrained()->cascadeOnDelete();

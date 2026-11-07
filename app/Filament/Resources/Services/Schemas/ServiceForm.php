@@ -59,7 +59,7 @@ class ServiceForm
                     ->schema([
                         TextInput::make('webhook_url')
                             ->label(__('Webhook URL'))
-                            ->helperText(__('e.g. https://recipes.example.com/api/konto/webhook'))
+                            ->helperText(__('e.g. https://recipes.example.com/api/account-manager/webhook'))
                             ->url()
                             ->maxLength(255),
                         TextEntry::make('secret_state')

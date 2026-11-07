@@ -112,7 +112,7 @@ Anders als die Apps braucht der AccountManager einen Identitätsanbieter mit Adm
 
 Ohne Konto gilt in jeder App die lokale Konfiguration (`ENTITLEMENTS_DRIVER=local`, z. B. KI für alle an oder aus).
 
-Regeln für `ENTITLEMENTS_DRIVER=konto`:
+Regeln für `ENTITLEMENTS_DRIVER=account-manager`:
 
 - Apps speichern den letzten Stand lokal. Ist das Konto nicht erreichbar, gilt dieser Stand weiter; die Apps funktionieren also auch bei einem Ausfall des Kontos.
 - Zusätzlich gleichen die Apps periodisch ab (z. B. täglich), falls ein Webhook verloren ging.
@@ -160,7 +160,7 @@ Ziel: Ein Haushalt (z. B. «Familie Muster») teilt app-übergreifend Inhalte, z
 - Zustellung über die Queue mit Wiederholungen (exponentiell), Protokoll in `webhook_deliveries`.
 - Jedes Ereignis hat eine `event_id` und einen Zeitstempel; Apps verarbeiten Ereignisse idempotent und ignorieren veraltete.
 - Signatur per HMAC mit Secret pro Dienst, Schutz gegen Wiederholung über den Zeitstempel.
-- Umsetzung (Haushalte): `X-Konto-Signature: sha256=<HMAC-SHA256 über "{timestamp}.{body}">`, `X-Konto-Timestamp`, Toleranz 300 s; 8 Versuche über rund 10 h; jedes Ereignis enthält den vollständigen Stand des Haushalts mit `version`, die Apps ignorieren Ereignisse mit kleinerer oder gleicher Version. Details: [`docs/HOUSEHOLDS-API.md`](HOUSEHOLDS-API.md).
+- Umsetzung (Haushalte): `X-Account-Manager-Signature: sha256=<HMAC-SHA256 über "{timestamp}.{body}">`, `X-Account-Manager-Timestamp`, Toleranz 300 s; 8 Versuche über rund 10 h; jedes Ereignis enthält den vollständigen Stand des Haushalts mit `version`, die Apps ignorieren Ereignisse mit kleinerer oder gleicher Version. Details: [`docs/HOUSEHOLDS-API.md`](HOUSEHOLDS-API.md).
 
 **Schnittstelle für «haushaltsfähige» Apps**
 
@@ -176,8 +176,8 @@ Ziel: Ein Haushalt (z. B. «Familie Muster») teilt app-übergreifend Inhalte, z
 **Ohne Konto (eigenständiger Betrieb)**
 
 - Die Apps behalten eine lokale Haushaltsverwaltung (`HOUSEHOLDS_DRIVER=local`): Haushalt anlegen, per E-Mail einladen, wie heute bei Kochbüchern. Diese Haushalte gelten nur in der jeweiligen App.
-- Mit `HOUSEHOLDS_DRIVER=konto` ist die lokale Verwaltung schreibgeschützt; die App spiegelt nur die Haushalte aus dem Konto.
-- Umstieg von lokal auf Konto: Die App exportiert ihre lokalen Haushalte an das Konto (Zusammenführung über Namen und Mitglieder, mit manueller Bestätigung durch einen Admin des Kontos unter «Haushaltsvorschläge») und speichert danach die `konto_household_uuid`.
+- Mit `HOUSEHOLDS_DRIVER=account-manager` ist die lokale Verwaltung schreibgeschützt; die App spiegelt nur die Haushalte aus dem Konto.
+- Umstieg von lokal auf Konto: Die App exportiert ihre lokalen Haushalte an das Konto (Zusammenführung über Namen und Mitglieder, mit manueller Bestätigung durch einen Admin des Kontos unter «Haushaltsvorschläge») und speichert danach die `account_manager_household_uuid`.
 - Rückbau: Die gespiegelten Haushalte werden zu lokalen Haushalten; Freigaben bleiben erhalten.
 
 **Besonderheiten**
@@ -201,15 +201,15 @@ Für RecipeManager, Shoppinglist und Chorelist gleich aufgebaut, alles über `.e
 | `AUTH_LOCAL_REGISTRATION` | Lokale Selbstregistrierung | `true` |
 | `AUTH_OIDC_ENABLED`, `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET`, `AUTH_OIDC_LABEL` | «Anmelden mit …» | aus |
 | `AUTH_OIDC_REQUIRED_GROUP` | Zusätzliche Prüfung des `groups`-Claims | leer |
-| `AUTH_ADMIN_SOURCE` | Admin-Rechte `local` (in der App) oder `konto` (Gruppe `admin_group`, z. B. `svc-recipes-admin`); lokale Notfall-Admins bleiben immer Admin | `local` |
-| `ENTITLEMENTS_DRIVER` | `local` oder `konto` | `local` |
-| `HOUSEHOLDS_DRIVER` | `local` oder `konto` | `local` |
+| `AUTH_ADMIN_SOURCE` | Admin-Rechte `local` (in der App) oder `account-manager` (Gruppe `admin_group`, z. B. `svc-recipes-admin`); lokale Notfall-Admins bleiben immer Admin | `local` |
+| `ENTITLEMENTS_DRIVER` | `local` oder `account-manager` | `local` |
+| `HOUSEHOLDS_DRIVER` | `local` oder `account-manager` | `local` |
 
 - **User-Tabelle:** neue Spalte `oidc_sub` (eindeutig, nullable). Passwort wird nullable für reine SSO-User.
 - **Verknüpfen:** Beim ersten OIDC-Login wird ein lokaler Account mit gleicher, bestätigter E-Mail verknüpft. Sonst entsteht ein neuer Account (nur wenn die Registrierung erlaubt ist). Zusätzlich im Profil «Konto verknüpfen» bzw. «Verknüpfung lösen».
 - **RecipeManager:** Filament-Login um Button «Anmelden mit …» erweitern; Registrierung, Passwort-Reset und Honeypot bleiben für den lokalen Login. Passport bleibt. Vertrauenswürdige Clients überspringen die Zustimmungsseite.
 - **Shoppinglist:** Login-Seite (auch PWA, offline bleibt die Sitzung gültig) um OIDC erweitern. KI-Wochenplanung über eine Freischaltung `shoppinglist.ai` absichern.
-- **Haushalte:** neue Tabellen `households`, `household_user` (lokal oder gespiegelt, mit `konto_household_uuid`) und eine Freigabe-Tabelle pro App (RecipeManager: `cookbook_household` mit denselben Rechten wie `cookbook_user`; Shoppinglist: `shopping_list_household`). `Recipe::visibleTo()`, `RecipePolicy` und die Listen-Abfragen der Shoppinglist berücksichtigen zusätzlich die Haushalts-Freigaben.
+- **Haushalte:** neue Tabellen `households`, `household_user` (lokal oder gespiegelt, mit `account_manager_household_uuid`) und eine Freigabe-Tabelle pro App (RecipeManager: `cookbook_household` mit denselben Rechten wie `cookbook_user`; Shoppinglist: `shopping_list_household`). `Recipe::visibleTo()`, `RecipePolicy` und die Listen-Abfragen der Shoppinglist berücksichtigen zusätzlich die Haushalts-Freigaben.
 - **OIDC-Library:** Kandidaten Laravel Socialite mit OIDC-Provider oder `league/oauth2-client`; Wahl und Installation nur nach Freigabe.
 
 ## 7. Migration bestehender User
@@ -248,9 +248,9 @@ Jede Phase in einem eigenen Feature-Branch, mit Tests und einzeln deploybar.
 
 **Stand 2026-11-01:** Phasen 1–3 umgesetzt. OIDC-Login optional in RecipeManager, Shoppinglist und Chorelist (`config/login.php`, gleiche `AUTH_*`-Variablen; in den Fortify-Apps Notfallzugang über `AUTH_LOCAL_EMERGENCY_EMAILS` statt Admin-Flag), Pocket ID produktiv unter `login.<domain>`, «Mit RecipeManager verbinden» ohne Eingabe über `PASSPORT_TRUSTED_CLIENTS`.
 
-**Phase 4 (MVP):** Dienstekatalog, User, Zugänge (beantragt/aktiv/gesperrt) mit Freigabe im Admin-Bereich, Gruppen-Abgleich mit Pocket ID (nur verwaltete Gruppen), Selbstregistrierung pro Dienst mit Double-Opt-in, Honeypot und Login-Code, Portal «Meine Dienste», Import bestehender Pocket-ID-User (`accounts:import`). Dazu (2026-11-03): Konto ohne Dienst erstellen (`/register`), Profil (Name, E-Mail mit Bestätigung, Abgleich mit Pocket ID), Link zu den Passkeys, «Öffnen» startet den SSO-Login der App. **Phase 5 (2026-11-02):** freiwilliger Umstieg pro User, SSO-Knopf zuoberst bei Login, Registrierung und Profil aller Apps, Name des Anbieters aus Pocket ID. **Phase 7 (2026-11-06, Branch `feature/households`, noch nicht gemergt):** lokale Haushalte in RecipeManager (`cookbook_household`, Zugriff zur Laufzeit über `Cookbook::grants()`), Shoppinglist (`shopping_list_household`) und Chorelist (`task_list_household`); in den PWAs wird der Haushaltszugriff als Listen-Mitgliedschaft mit `direct = false` gespiegelt, damit der Sync den Entzug mitbekommt. Einladungen brauchen immer eine Zusage, `HOUSEHOLDS_DRIVER=konto` sperrt nur die lokale Verwaltung. Noch nicht: Webhooks an die Apps, Mailer pro Dienst, Profilfelder, Abos/Rechnungen, Haushalte.
+**Phase 4 (MVP):** Dienstekatalog, User, Zugänge (beantragt/aktiv/gesperrt) mit Freigabe im Admin-Bereich, Gruppen-Abgleich mit Pocket ID (nur verwaltete Gruppen), Selbstregistrierung pro Dienst mit Double-Opt-in, Honeypot und Login-Code, Portal «Meine Dienste», Import bestehender Pocket-ID-User (`accounts:import`). Dazu (2026-11-03): Konto ohne Dienst erstellen (`/register`), Profil (Name, E-Mail mit Bestätigung, Abgleich mit Pocket ID), Link zu den Passkeys, «Öffnen» startet den SSO-Login der App. **Phase 5 (2026-11-02):** freiwilliger Umstieg pro User, SSO-Knopf zuoberst bei Login, Registrierung und Profil aller Apps, Name des Anbieters aus Pocket ID. **Phase 7 (2026-11-06, Branch `feature/households`, noch nicht gemergt):** lokale Haushalte in RecipeManager (`cookbook_household`, Zugriff zur Laufzeit über `Cookbook::grants()`), Shoppinglist (`shopping_list_household`) und Chorelist (`task_list_household`); in den PWAs wird der Haushaltszugriff als Listen-Mitgliedschaft mit `direct = false` gespiegelt, damit der Sync den Entzug mitbekommt. Einladungen brauchen immer eine Zusage, `HOUSEHOLDS_DRIVER=account-manager` sperrt nur die lokale Verwaltung. Noch nicht: Webhooks an die Apps, Mailer pro Dienst, Profilfelder, Abos/Rechnungen, Haushalte.
 
-**Phase 8, Konto-Teil (2026-11-07, Branch `feature/households`, noch nicht gemergt):** Haushalte im Konto (Portal `/households`: erstellen, umbenennen, löschen, per E-Mail mit Rolle einladen, Einladung zurückziehen, annehmen/ablehnen, Rolle ändern, entfernen, austreten; mindestens ein Admin; Einladungen nur für die eingeladene, bestätigte Adresse, Link funktioniert auch für Gäste über Login bzw. Registrierung). Webhooks per Queue mit Protokoll, API für die Apps (`GET /api/households?sub=`, `GET /api/households/{uuid}`, `PUT …/shares`, Import-Vorschläge), Webhook-URL und Secret pro Dienst im Admin-Bereich, Übersichten für Admins (Haushalte, Haushaltsvorschläge, Webhooks). Wird ein User gelöscht, verlässt er alle Haushalte (ohne Admin wird das am längsten beigetretene Mitglied Admin, leere Haushalte werden gelöscht). Vertrag: [`docs/HOUSEHOLDS-API.md`](HOUSEHOLDS-API.md). Offen: die App-Seite (`HOUSEHOLDS_DRIVER=konto` in RecipeManager, Shoppinglist, Chorelist), `user.deleted` und `entitlements.changed` (Phase 6).
+**Phase 8, Konto-Teil (2026-11-07, Branch `feature/households`, noch nicht gemergt):** Haushalte im Konto (Portal `/households`: erstellen, umbenennen, löschen, per E-Mail mit Rolle einladen, Einladung zurückziehen, annehmen/ablehnen, Rolle ändern, entfernen, austreten; mindestens ein Admin; Einladungen nur für die eingeladene, bestätigte Adresse, Link funktioniert auch für Gäste über Login bzw. Registrierung). Webhooks per Queue mit Protokoll, API für die Apps (`GET /api/households?sub=`, `GET /api/households/{uuid}`, `PUT …/shares`, Import-Vorschläge), Webhook-URL und Secret pro Dienst im Admin-Bereich, Übersichten für Admins (Haushalte, Haushaltsvorschläge, Webhooks). Wird ein User gelöscht, verlässt er alle Haushalte (ohne Admin wird das am längsten beigetretene Mitglied Admin, leere Haushalte werden gelöscht). Vertrag: [`docs/HOUSEHOLDS-API.md`](HOUSEHOLDS-API.md). Offen: die App-Seite (`HOUSEHOLDS_DRIVER=account-manager` in RecipeManager, Shoppinglist, Chorelist), `user.deleted` und `entitlements.changed` (Phase 6).
 
 In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistrierung. SSO wird dort nur mit von Hand angelegten Test- und Admin-Accounts genutzt; alle anderen User melden sich weiter lokal an. Ab Phase 5 wechseln bestehende User freiwillig (Abschnitt 7).
 
@@ -282,7 +282,7 @@ In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistr
 - **Zahlungsverzug:** keine automatische Sperre. Benachrichtigung an den Admin, Sperre von Hand mit vordefinierter oder eigener Begründung, E-Mail an den User (siehe 5.4).
 
 - **Account löschen:** Das Konto schickt `user.deleted`; jede App löscht den User und seine privaten Inhalte, geteilte Inhalte gehen je nach App-Einstellung an einen anderen Haushalts-Admin über oder werden gelöscht.
-- **Admin-Rechte in den Apps:** standardmässig lokal. Optional zentral über das Konto (`AUTH_ADMIN_SOURCE=konto`, Gruppe pro Dienst).
+- **Admin-Rechte in den Apps:** standardmässig lokal. Optional zentral über das Konto (`AUTH_ADMIN_SOURCE=account-manager`, Gruppe pro Dienst).
 - **E-Mail-Versand:** standardmässig derselbe SMTP-Server wie die Apps, pro Dienst im Konto überschreibbar (`mailers`).
 - **Identitätsanbieter im AccountManager:** austauschbare Schnittstelle `IdentityProvider`, zuerst nur mit Pocket ID umgesetzt. Ohne passenden Treiber läuft ein reduzierter Betrieb: Login per OIDC, Zugänge und Gruppen pflegt der Admin von Hand im Identitätsanbieter; Abos, Rechnungen und Haushalte funktionieren weiter. Weitere Treiber (z. B. Authentik) erst bei konkretem Bedarf.
 

@@ -39,7 +39,7 @@ class EditService extends EditRecord
     {
         return Action::make('showSecret')
             ->modalHeading(__('New secret'))
-            ->modalDescription(__('Copy it now into the configuration of the app (e.g. KONTO_SECRET); it is not shown again.'))
+            ->modalDescription(__('Copy it now into the configuration of the app (e.g. ACCOUNT_MANAGER_SECRET); it is not shown again.'))
             ->schema(fn (array $arguments): array => [
                 TextEntry::make('key')->label(__('Key'))->state($this->getRecord()->getAttribute('key'))->copyable()->fontFamily('mono'),
                 TextEntry::make('secret')->label(__('Secret'))->state($arguments['secret'] ?? '')->copyable()->fontFamily('mono'),

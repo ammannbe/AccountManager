@@ -1,24 +1,24 @@
 # Haushalte: Schnittstelle für die Apps
 
-Stand: 2026-11-07 · Gilt für `HOUSEHOLDS_DRIVER=konto` in RecipeManager, Shoppinglist, Chorelist und jeder weiteren «haushaltsfähigen» App. Hintergrund: `docs/KONZEPT.md`, Abschnitt 5.6.
+Stand: 2026-11-07 · Gilt für `HOUSEHOLDS_DRIVER=account-manager` in RecipeManager, Shoppinglist, Chorelist und jeder weiteren «haushaltsfähigen» App. Hintergrund: `docs/KONZEPT.md`, Abschnitt 5.6.
 
-Das Konto (AccountManager) ist die Quelle der Wahrheit für Haushalte, Mitglieder und Rollen. Die Apps spiegeln diese Daten lokal (abgeglichen über `oidc_sub`) und entscheiden selbst, was sie mit einem Haushalt teilen. Verwaltet werden Haushalte nur im Konto (Portal `/households`); in den Apps ist die Haushaltsverwaltung mit `konto` schreibgeschützt.
+Das Konto (AccountManager) ist die Quelle der Wahrheit für Haushalte, Mitglieder und Rollen. Die Apps spiegeln diese Daten lokal (abgeglichen über `oidc_sub`) und entscheiden selbst, was sie mit einem Haushalt teilen. Verwaltet werden Haushalte nur im Konto (Portal `/households`); in den Apps ist die Haushaltsverwaltung mit `account-manager` schreibgeschützt.
 
 ## 1. Einrichtung
 
 Im Admin-Bereich des Kontos unter **Dienste → Dienst bearbeiten**:
 
-1. **Webhook-URL** eintragen, z. B. `https://recipes.example.com/api/konto/webhook` (HTTPS, ohne Weiterleitung: das Konto folgt keinen Redirects).
+1. **Webhook-URL** eintragen, z. B. `https://recipes.example.com/api/account-manager/webhook` (HTTPS, ohne Weiterleitung: das Konto folgt keinen Redirects).
 2. **Secret erzeugen** (oben rechts). Das Secret wird genau einmal angezeigt und im Konto verschlüsselt gespeichert. «Secret erneuern» macht das alte sofort ungültig.
 
 In der App (Vorschlag für die Namen, alle über `.env`):
 
 | Variable | Inhalt |
 |---|---|
-| `HOUSEHOLDS_DRIVER` | `konto` |
-| `KONTO_URL` | Basis-URL des Kontos, z. B. `https://konto.example.com` |
-| `KONTO_SERVICE_KEY` | Schlüssel des Dienstes im Konto (Feld «Schlüssel», z. B. `recipes`) |
-| `KONTO_SECRET` | das erzeugte Secret (64 Hex-Zeichen) |
+| `HOUSEHOLDS_DRIVER` | `account-manager` |
+| `ACCOUNT_MANAGER_URL` | Basis-URL des Kontos, z. B. `https://konto.example.com` |
+| `ACCOUNT_MANAGER_SERVICE_KEY` | Schlüssel des Dienstes im Konto (Feld «Schlüssel», z. B. `recipes`) |
+| `ACCOUNT_MANAGER_SECRET` | das erzeugte Secret (64 Hex-Zeichen) |
 
 Ein Secret pro Dienst dient für beides: Es signiert die Webhooks des Kontos und authentifiziert die API-Aufrufe der App. (Entscheid siehe `KONZEPT.md`, Abschnitt 11.)
 
@@ -38,7 +38,7 @@ Jede Antwort und jedes Ereignis enthält den **vollständigen aktuellen Stand** 
 }
 ```
 
-- `uuid`: stabile ID des Haushalts. Die App speichert sie als `konto_household_uuid`.
+- `uuid`: stabile ID des Haushalts. Die App speichert sie als `account_manager_household_uuid`.
 - `name`: Name des Haushalts (max. 100 Zeichen).
 - `version`: Ganzzahl, steigt bei **jeder** Änderung des Haushalts um 1 (Name, Mitglieder, Rollen). Grundlage für Reihenfolge und Idempotenz (Abschnitt 5).
 - `members`: alle Mitglieder mit `sub` (= `oidc_sub`, die User-ID beim Identitätsanbieter) und `role` (`admin` | `member`), sortiert nach Beitritt. Mitglieder ohne Identität (lokale Notfall-Admins des Kontos) fehlen, weil sie die Apps nicht nutzen können.
@@ -47,17 +47,17 @@ Jede Antwort und jedes Ereignis enthält den **vollständigen aktuellen Stand** 
 
 ## 3. API (App → Konto)
 
-Basis: `{KONTO_URL}/api`. Antworten sind JSON, Fehler haben die Form `{"message": "…"}` (Validierung zusätzlich `errors`).
+Basis: `{ACCOUNT_MANAGER_URL}/api`. Antworten sind JSON, Fehler haben die Form `{"message": "…"}` (Validierung zusätzlich `errors`).
 
 ### 3.1 Authentifizierung
 
 HTTP Basic mit dem Schlüssel des Dienstes als Benutzername und dem Secret als Passwort:
 
 ```
-Authorization: Basic base64("recipes:<KONTO_SECRET>")
+Authorization: Basic base64("recipes:<ACCOUNT_MANAGER_SECRET>")
 ```
 
-Laravel: `Http::withBasicAuth(config('households.konto.key'), config('households.konto.secret'))->acceptJson()`.
+Laravel: `Http::withBasicAuth(config('households.account_manager.key'), config('households.account_manager.secret'))->acceptJson()`.
 
 - Fehlende oder falsche Angaben → `401` mit `WWW-Authenticate: Basic realm="AccountManager"`.
 - Rate-Limit: 120 Anfragen pro Minute und IP (`429`).
@@ -137,7 +137,7 @@ Content-Type: application/json
 
 ### 3.5 Umstieg lokal → Konto: `POST /api/households/import` und `GET /api/households/import`
 
-Beim Wechsel von `HOUSEHOLDS_DRIVER=local` auf `konto` schlägt die App ihre lokalen Haushalte vor. Das Konto führt **nichts automatisch** zusammen: Ein Admin des Kontos entscheidet pro Vorschlag im Admin-Bereich (**Haushaltsvorschläge**): neuen Haushalt erstellen, in einen bestehenden Haushalt zusammenführen (Vorschlag: gleicher Name und ein gemeinsames Mitglied) oder ablehnen.
+Beim Wechsel von `HOUSEHOLDS_DRIVER=local` auf `account-manager` schlägt die App ihre lokalen Haushalte vor. Das Konto führt **nichts automatisch** zusammen: Ein Admin des Kontos entscheidet pro Vorschlag im Admin-Bereich (**Haushaltsvorschläge**): neuen Haushalt erstellen, in einen bestehenden Haushalt zusammenführen (Vorschlag: gleicher Name und ein gemeinsames Mitglied) oder ablehnen.
 
 ```http
 POST /api/households/import HTTP/1.1
@@ -171,7 +171,7 @@ Antwort `202`:
 - `local_id` (String, max. 100, eindeutig pro Dienst), `name` (max. 100), `members` (1–100, nur Mitglieder mit `oidc_sub`; `role` optional, Standard `member`). Max. 500 Haushalte pro Aufruf.
 - Erneutes Senden ist erlaubt (idempotent über `local_id`): offene Vorschläge werden aktualisiert, entschiedene bleiben unverändert.
 - `GET /api/households/import` liefert den Stand aller Vorschläge des Dienstes (gleiche Form). Die App fragt periodisch ab (z. B. stündlich), bis kein Vorschlag mehr `pending` ist:
-  - `confirmed`: `household_uuid` und `household` (Snapshot) sind gesetzt. Die App speichert `konto_household_uuid` beim lokalen Haushalt, übernimmt Name und Mitglieder aus dem Snapshot und behält ihre Freigaben (z. B. `cookbook_household`).
+  - `confirmed`: `household_uuid` und `household` (Snapshot) sind gesetzt. Die App speichert `account_manager_household_uuid` beim lokalen Haushalt, übernimmt Name und Mitglieder aus dem Snapshot und behält ihre Freigaben (z. B. `cookbook_household`).
   - `rejected`: Der lokale Haushalt wird nicht gespiegelt. Empfehlung: in einen lokalen, schreibgeschützten Zustand überführen oder dem Eigentümer anzeigen; die Freigaben entfallen erst, wenn die App den Haushalt löscht.
 - Mitglieder ohne `oidc_sub` kann die App nicht vorschlagen. Da nach der Bestätigung der Snapshot massgebend ist, verlieren sie den Haushaltszugriff in der App, bis sie ihren Login mit dem Konto verknüpfen und im Konto Mitglied des Haushalts sind. Die App sollte das vor dem Import anzeigen.
 - Vorgeschlagene Mitglieder ohne User im Konto werden nicht übernommen (der Admin sieht ihre Anzahl). Beim Zusammenführen behalten bestehende Mitglieder ihre Rolle; fehlt ein Admin, wird beim Erstellen das erste Mitglied Admin.
@@ -193,10 +193,10 @@ Antwort `202`:
 |---|---|
 | `Content-Type` | `application/json` |
 | `User-Agent` | `AccountManager-Webhooks` |
-| `X-Konto-Event` | Typ, z. B. `household.member_added` |
-| `X-Konto-Event-Id` | UUID des Ereignisses (gleich wie `event_id` im Body; bei Wiederholungen unverändert) |
-| `X-Konto-Timestamp` | Unix-Zeit (Sekunden) des Versuchs |
-| `X-Konto-Signature` | `sha256=` + HMAC-SHA256 (hex) über `"{timestamp}.{body}"` mit dem Secret |
+| `X-Account-Manager-Event` | Typ, z. B. `household.member_added` |
+| `X-Account-Manager-Event-Id` | UUID des Ereignisses (gleich wie `event_id` im Body; bei Wiederholungen unverändert) |
+| `X-Account-Manager-Timestamp` | Unix-Zeit (Sekunden) des Versuchs |
+| `X-Account-Manager-Signature` | `sha256=` + HMAC-SHA256 (hex) über `"{timestamp}.{body}"` mit dem Secret |
 
 ### 4.3 Signatur prüfen
 
@@ -211,9 +211,9 @@ use Illuminate\Http\Request;
 public function __invoke(Request $request)
 {
     $body = $request->getContent();
-    $timestamp = (string) $request->header('X-Konto-Timestamp');
-    $signature = (string) $request->header('X-Konto-Signature');
-    $secret = (string) config('households.konto.secret');
+    $timestamp = (string) $request->header('X-Account-Manager-Timestamp');
+    $signature = (string) $request->header('X-Account-Manager-Signature');
+    $secret = (string) config('households.account_manager.secret');
 
     $fresh = ctype_digit($timestamp) && abs(time() - (int) $timestamp) <= 300;
     $expected = 'sha256='.hash_hmac('sha256', $timestamp.'.'.$body, $secret);
@@ -273,13 +273,13 @@ Hinweise:
 
 ## 5. Reihenfolge und Idempotenz
 
-Die App speichert pro gespiegeltem Haushalt `konto_household_uuid` und `konto_version` und wendet Snapshots so an:
+Die App speichert pro gespiegeltem Haushalt `account_manager_household_uuid` und `account_manager_version` und wendet Snapshots so an:
 
 1. **Snapshot statt Delta:** Bei jedem Ereignis (Typ egal) und jeder API-Antwort wird der lokale Haushalt auf den Snapshot gesetzt: Name übernehmen, Mitgliedschaften für die `sub`s im Snapshot anlegen bzw. Rolle setzen, alle anderen Mitgliedschaften entfernen. Unbekannte `sub`s (User hat die App noch nie benutzt) merkt sich die App (z. B. Tabelle `household_pending_members` oder JSON-Spalte) und ordnet sie beim ersten Login zu; alternativ ruft sie beim Login 3.2 auf.
-2. **Veraltete ignorieren:** Ist `version` des Snapshots **kleiner oder gleich** `konto_version`, wird das Ereignis ignoriert (trotzdem `2xx`). Sonst anwenden und `konto_version` setzen.
+2. **Veraltete ignorieren:** Ist `version` des Snapshots **kleiner oder gleich** `account_manager_version`, wird das Ereignis ignoriert (trotzdem `2xx`). Sonst anwenden und `account_manager_version` setzen.
 3. **Löschen:** `household.deleted` (bzw. `404` bei 3.3) → lokalen Haushalt löschen; Freigaben fallen weg, Inhalte bleiben beim Eigentümer. Wegen der fehlenden Reihenfolge kann danach noch ein älteres Ereignis dieses Haushalts eintreffen.
 4. **Unbekannte Haushalte:** Kommt ein Ereignis (ausser `household.deleted`) für eine unbekannte `uuid`, holt die App den Stand mit 3.3 und wendet die API-Antwort an; bei `404` wird nichts angelegt. So entstehen keine Haushalte aus veralteten Ereignissen nach einer Löschung. (Optional: Grabstein mit `uuid` und letzter Version statt des API-Aufrufs.)
-5. **API-Antworten** (3.2, 3.3) sind massgebend und werden angewendet, wenn ihre `version` grösser oder gleich `konto_version` ist.
+5. **API-Antworten** (3.2, 3.3) sind massgebend und werden angewendet, wenn ihre `version` grösser oder gleich `account_manager_version` ist.
 6. **Periodischer Abgleich** (z. B. täglich): 3.2 für alle User mit `oidc_sub`, gespiegelte Haushalte ohne Treffer mit 3.3 prüfen. Damit heilen verlorene Webhooks und Haushalte, die den Dienst nicht mehr betreffen.
 7. **Entfernte Mitglieder:** Empfehlung: Verschwindet ein Mitglied aus dem Snapshot (entfernt oder ausgetreten), hebt die App die Freigaben seiner eigenen Inhalte (z. B. Kochbücher, Listen, deren Eigentümer es ist) für diesen Haushalt auf; die Inhalte bleiben bei ihm. So verhalten sich RecipeManager, Shoppinglist und Chorelist; das Konto weist im Portal beim Entfernen und Verlassen darauf hin.
 8. **Nach dem Anwenden** die app-spezifischen Folgen auslösen, z. B. in den PWAs die betroffenen Listen für alle (auch entfernte) Mitglieder neu synchronisieren (`syncHouseholdMembers()`/`touchForMembers()`).
@@ -288,15 +288,15 @@ Die App speichert pro gespiegeltem Haushalt `konto_household_uuid` und `konto_ve
 
 - Die App arbeitet mit dem letzten gespiegelten Stand weiter; Haushalts-Freigaben gelten weiter.
 - Webhooks, die das Konto nicht zustellen konnte, wiederholt es (Abschnitt 4.1); was danach fehlt, holt der periodische Abgleich.
-- Rückbau (`HOUSEHOLDS_DRIVER=local`): Die gespiegelten Haushalte werden zu lokalen Haushalten (`konto_household_uuid` darf bleiben), Freigaben bleiben erhalten.
+- Rückbau (`HOUSEHOLDS_DRIVER=local`): Die gespiegelten Haushalte werden zu lokalen Haushalten (`account_manager_household_uuid` darf bleiben), Freigaben bleiben erhalten.
 
 ## 7. Checkliste für eine neue App
 
-- [ ] Tabellen `households` (mit `konto_household_uuid`, `konto_version`), `household_user`, Freigabe-Tabelle pro Inhalt.
-- [ ] `.env`: `HOUSEHOLDS_DRIVER=konto`, `KONTO_URL`, `KONTO_SERVICE_KEY`, `KONTO_SECRET`; im Konto Webhook-URL und Secret gesetzt.
+- [ ] Tabellen `households` (mit `account_manager_household_uuid`, `account_manager_version`), `household_user`, Freigabe-Tabelle pro Inhalt.
+- [ ] `.env`: `HOUSEHOLDS_DRIVER=account-manager`, `ACCOUNT_MANAGER_URL`, `ACCOUNT_MANAGER_SERVICE_KEY`, `ACCOUNT_MANAGER_SECRET`; im Konto Webhook-URL und Secret gesetzt.
 - [ ] Webhook-Route mit Signaturprüfung (4.3), Verarbeitung nach Abschnitt 5, Antwort `2xx`.
 - [ ] Beim Login (OIDC) 3.2 aufrufen und anwenden.
 - [ ] Täglicher Abgleich (Scheduler).
 - [ ] Optional: Freigaben per 3.4 melden.
-- [ ] Umstieg: lokale Haushalte per 3.5 vorschlagen, Stand abfragen, `konto_household_uuid` speichern.
+- [ ] Umstieg: lokale Haushalte per 3.5 vorschlagen, Stand abfragen, `account_manager_household_uuid` speichern.
 - [ ] Tests: Signatur (gültig, falsch, abgelaufen), veraltete Version, unbekannter Haushalt mit `404`, Löschen, Entfernen eines Mitglieds (Zugriff weg, Offline-Sync).

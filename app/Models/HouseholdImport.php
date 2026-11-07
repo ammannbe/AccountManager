@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 
 /**
- * A local household an app proposes when switching to HOUSEHOLDS_DRIVER=konto. An admin creates
+ * A local household an app proposes when switching to HOUSEHOLDS_DRIVER=account-manager. An admin creates
  * a new household from it or merges it into an existing one; the app then polls the uuid.
  *
  * @property HouseholdImportStatus $status
