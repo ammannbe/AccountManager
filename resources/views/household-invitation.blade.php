@@ -12,7 +12,7 @@
                 {{ __('You are invited to the household ":household".', ['household' => $invitation->household->name]) }}
             @endif
         </p>
-        <p class="mb-6 text-sm text-stone-600">{{ __('You see what the members share with the household in the connected apps, and they see your name and email address.') }}</p>
+        <p class="mb-6 text-sm text-stone-500">{{ __('You see what the members share with the household in the connected apps, and they see your name and email address.') }}</p>
 
         @guest
             <p class="mb-4 text-sm text-stone-600">{{ __('Log in with :email to join. You come back here afterwards.', ['email' => $invitation->email]) }}</p>
@@ -24,16 +24,16 @@
             </div>
         @else
             @if (! $invitation->isFor(auth()->user()))
-                <p class="rounded-lg bg-amber-100 px-4 py-3 text-sm text-amber-900">{{ __('This invitation is for :email. Log in with that address and confirm it in your profile.', ['email' => $invitation->email]) }}</p>
+                <p class="notice">{{ __('This invitation is for :email. Log in with that address and confirm it in your profile.', ['email' => $invitation->email]) }}</p>
             @else
-                <div class="flex gap-3">
+                <div class="flex gap-2">
                     <form method="POST" action="{{ route('household-invitations.accept-token', $token) }}" class="flex-1">
                         @csrf
                         <x-button>{{ __('Join household') }}</x-button>
                     </form>
-                    <form method="POST" action="{{ route('household-invitations.decline-token', $token) }}" class="flex-1">
+                    <form method="POST" action="{{ route('household-invitations.decline-token', $token) }}">
                         @csrf
-                        <x-button secondary>{{ __('Decline') }}</x-button>
+                        <button type="submit" class="button-secondary">{{ __('Decline') }}</button>
                     </form>
                 </div>
             @endif
