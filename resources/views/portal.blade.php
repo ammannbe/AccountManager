@@ -34,6 +34,27 @@
                         @if ($account->external_username)
                             <p class="mt-2 text-sm text-stone-600">{{ __('Username: :name', ['name' => $account->external_username]) }}</p>
                         @endif
+                        @php $unlocked = $entitlements[$service->id] ?? null; @endphp
+                        @if ($unlocked && ($unlocked['subscriptions']->isNotEmpty() || $unlocked['features']->isNotEmpty()))
+                            <dl class="mt-3 space-y-1 text-sm">
+                                @if ($unlocked['subscriptions']->isNotEmpty())
+                                    <div class="flex flex-wrap gap-x-2">
+                                        <dt class="text-stone-500">{{ __('Plans') }}:</dt>
+                                        <dd>
+                                            @foreach ($unlocked['subscriptions'] as $subscription)
+                                                {{ $subscription->plan->name }}@if ($subscription->ends_at) <span class="text-stone-500">({{ __('until :date', ['date' => $subscription->ends_at->isoFormat('LL')]) }})</span>@endif{{ $loop->last ? '' : ',' }}
+                                            @endforeach
+                                        </dd>
+                                    </div>
+                                @endif
+                                @if ($unlocked['features']->isNotEmpty())
+                                    <div class="flex flex-wrap gap-x-2">
+                                        <dt class="text-stone-500">{{ __('Unlocked') }}:</dt>
+                                        <dd>{{ $unlocked['features']->pluck('name')->join(', ') }}</dd>
+                                    </div>
+                                @endif
+                            </dl>
+                        @endif
                     @elseif ($account?->status === AccountStatus::Requested)
                         <p class="text-sm text-stone-600">{{ __('Your request is waiting for an approval.') }}</p>
                     @elseif ($account?->status === AccountStatus::Suspended)

@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\ServiceType;
+use App\Observers\ServiceObserver;
 use Database\Factories\ServiceFactory;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +18,7 @@ use SensitiveParameter;
  * @property string|null $secret
  * @property Carbon|null $secret_created_at
  */
+#[ObservedBy(ServiceObserver::class)]
 class Service extends Model
 {
     /** @use HasFactory<ServiceFactory> */
@@ -37,6 +40,7 @@ class Service extends Model
         'webhook_url',
         'type',
         'access_group',
+        'admin_group',
         'self_signup',
         'requires_approval',
         'visible',
@@ -81,6 +85,22 @@ class Service extends Model
     }
 
     /**
+     * @return HasMany<Feature, $this>
+     */
+    public function features(): HasMany
+    {
+        return $this->hasMany(Feature::class);
+    }
+
+    /**
+     * @return HasMany<Plan, $this>
+     */
+    public function plans(): HasMany
+    {
+        return $this->hasMany(Plan::class);
+    }
+
+    /**
      * @param  Builder<Service>  $query
      * @return Builder<Service>
      */
@@ -90,13 +110,22 @@ class Service extends Model
     }
 
     /**
-     * All groups the AccountManager manages; other groups of a user are left alone.
+     * All groups the AccountManager manages (access and admin groups of the services, groups of
+     * the features); other groups of a user are left alone.
      *
      * @return list<string>
      */
     public static function managedGroups(): array
     {
-        return array_values(array_map('strval', static::query()->whereNotNull('access_group')->orderBy('access_group')->pluck('access_group')->all()));
+        $groups = [
+            ...static::query()->whereNotNull('access_group')->pluck('access_group')->all(),
+            ...static::query()->whereNotNull('admin_group')->pluck('admin_group')->all(),
+            ...Feature::query()->whereNotNull('group')->pluck('group')->all(),
+        ];
+        $groups = array_values(array_unique(array_filter(array_map('strval', $groups), fn (string $group): bool => $group !== '')));
+        sort($groups);
+
+        return $groups;
     }
 
     /**

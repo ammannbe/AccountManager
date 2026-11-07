@@ -52,7 +52,8 @@ class HouseholdWebhookTest extends TestCase
     private function userWithAccount(string $sub, ?Service $service = null, array $attributes = []): User
     {
         $user = User::factory()->create(['oidc_sub' => $sub, ...$attributes]);
-        ServiceAccount::factory()->for($user)->for($service ?? $this->recipes)->create();
+        // Without the entitlements event of a new account (see EntitlementWebhookTest).
+        ServiceAccount::withoutEvents(fn () => ServiceAccount::factory()->for($user)->for($service ?? $this->recipes)->create());
 
         return $user;
     }
@@ -65,6 +66,7 @@ class HouseholdWebhookTest extends TestCase
         return array_values(Http::recorded()
             ->filter(fn (array $pair): bool => str_contains($pair[0]->url(), $host))
             ->map(fn (array $pair): array => (array) json_decode($pair[0]->body(), true))
+            ->filter(fn (array $event): bool => str_starts_with((string) $event['type'], 'household.'))
             ->all());
     }
 

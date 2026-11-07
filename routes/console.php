@@ -1,12 +1,15 @@
 <?php
 
+use App\Entitlements\Entitlements;
 use App\Enums\AccountStatus;
+use App\Enums\SubscriptionStatus;
 use App\Identity\IdentityProvider;
 use App\Jobs\SyncUserGroups;
 use App\Models\HouseholdInvitation;
 use App\Models\Registration;
 use App\Models\Service;
 use App\Models\ServiceAccount;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Models\WebhookDelivery;
 use Illuminate\Support\Facades\Artisan;
@@ -110,5 +113,21 @@ Artisan::command('households:prune', function () {
     $this->info("Pruned {$invitations} invitation(s) and {$deliveries} webhook delivery(ies).");
 })->purpose('Delete old household invitations and webhook deliveries (older than 30 days)');
 
+Artisan::command('entitlements:refresh {--all : Recompute the entitlements of every linked user}', function (Entitlements $entitlements) {
+    // Subscriptions past their end are ended (the observer sends the new entitlements).
+    $expired = Subscription::query()->where('status', SubscriptionStatus::Active)->where('ends_at', '<=', now())->get();
+    $expired->each(fn (Subscription $subscription) => $subscription->update(['status' => SubscriptionStatus::Ended]));
+
+    // Subscriptions that started since the last runs (a day back, in case runs were missed); unchanged snapshots send nothing.
+    $userIds = $this->option('all')
+        ? User::query()->whereNotNull('oidc_sub')->pluck('id')
+        : Subscription::query()->where('status', SubscriptionStatus::Active)->whereBetween('starts_at', [now()->subDay(), now()])->pluck('user_id');
+
+    $entitlements->refreshUsers(array_map('intval', $userIds->all()));
+
+    $this->info("Ended {$expired->count()} subscription(s), checked {$userIds->unique()->count()} user(s).");
+})->purpose('End expired subscriptions and send the entitlements of subscriptions that started');
+
+Schedule::command('entitlements:refresh')->everyFifteenMinutes();
 Schedule::command('registrations:prune')->daily();
 Schedule::command('households:prune')->daily();
