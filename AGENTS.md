@@ -1,6 +1,6 @@
 # AGENTS.md
 
-AccountManager («Konto»): central account portal for own services. Users log in through an OpenID Connect provider (Pocket ID), see their services, register per service, and admins manage services and access. Concept, decisions and phases: `docs/KONZEPT.md` (German). Phase 4 (MVP) is implemented; subscriptions, invoices, webhooks and households follow.
+AccountManager («Konto»): central account portal for own services. Users log in through an OpenID Connect provider (Pocket ID), see their services, register per service, and admins manage services and access. Concept, decisions and phases: `docs/KONZEPT.md` (German). Phase 4 (MVP) and the households (phase 8, AccountManager side) are implemented; subscriptions, invoices and entitlement webhooks follow.
 
 ## Stack
 
@@ -20,6 +20,11 @@ AccountManager («Konto»): central account portal for own services. Users log i
 - Profile (`ProfileController`, `/profile`): name is saved in the provider right away; a new email address gets a signed link (`profile.email`, 24 h, bound to the old address via `from`, GET only shows a button) and is set in the provider as verified on confirmation. Links to the passkey page of the provider (`identity.account_url`, default `<issuer>/settings/account` with pocket-id). Users never need the provider's UI except for the login and the passkeys (Pocket ID: `ALLOW_OWN_ACCOUNT_EDIT=false`, `HOME_PAGE_URL` = the AccountManager).
 - Login: `/login` (button) → `/auth/oidc/redirect|callback` (`OidcController`, `App\Auth\OidcLogin`: by `oidc_sub`, otherwise by an email the provider marks as verified; unknown users get a local account with `AUTH_OIDC_REGISTRATION`). `App\Auth\OidcProvider` checks `iss`, `aud`/`azp`, `exp`. Admins may also log in with a password at `/admin/login` (emergency access only; `php artisan accounts:make-admin <email> --password`). Same structure as RecipeManager, Shoppinglist and Chorelist. Button label `App\Auth\OidcLabel::get()` (same class in all apps): `AUTH_OIDC_LABEL`, otherwise the `appName` Pocket ID publishes at `<issuer>/api/application-configuration` (cached), otherwise "SSO".
 
+- Households (`App\Households\Households`, same rules and names as the local households of RecipeManager/Chorelist): `households` (`uuid` route key, `version` incremented on every change), `household_members` (role `admin`|`member`, `App\Enums\HouseholdRole`), `household_invitations` (SHA-256 of the token, 14 days, bound to the invited verified address, always needs consent; the link `/invitations/{token}` only shows a button, guests get `url.intended` and log in or register). Last-admin protection (`LastHouseholdAdmin`, rows locked). Portal `/households` (`HouseholdController`, `HouseholdInvitationController`); the panel only has read-only overviews. Deleting a user (`User::deleting`) runs `Households::forget()`: longest member becomes admin, empty households are deleted.
+- Webhooks to the apps (`App\Households\HouseholdEvents` → `webhook_deliveries` → `App\Jobs\DeliverWebhook`, 8 tries, signed by `App\Webhooks\WebhookSignature`): only to services with `webhook_url` and `secret` where an affected user has an account; payload = full household snapshot (uuid, name, version, members' `sub` + role), nothing else. Each change locks the household row first so versions and snapshots stay consistent.
+- API for the apps (`routes/api.php`, `AuthenticateService`: HTTP Basic service key + service secret; `Service::rotateSecret()` in the panel, stored encrypted, shown once): households of a sub, one household, shares, import proposals (`household_imports`, resolved by an admin in the panel, `App\Households\HouseholdImports`). Contract: `docs/HOUSEHOLDS-API.md`; keep it in sync with any change.
+- `households:prune` (daily): old invitations and webhook deliveries (30 days).
+
 ## Identity provider
 
 - `App\Identity\IdentityProvider` (find, list, create and update users, sync groups, send a login code), bound by `IDENTITY_DRIVER` (`config/identity.php`): `pocket-id` (`PocketIdProvider`, REST API with `X-API-KEY`: `POST /api/users`, `GET|PUT /api/users/{id}` (the PUT replaces the whole user, so unchanged fields are sent back), `GET /api/users/{id}/groups`, `PUT /api/users/{id}/user-groups`, `POST /api/user-groups` for missing groups, `POST /api/users/{id}/one-time-access-email`) or `manual` (reduced mode: nothing is created or synced, the admins get `ManualSetupNeeded`).
@@ -29,7 +34,7 @@ AccountManager («Konto»): central account portal for own services. Users log i
 ## Deployment
 
 - KeyHelp (PHP-FPM + cron), like the other apps. `.forgejo/workflows/deploy.yml` (same as RecipeManager): push to `main` → GitHub → Forgejo pull mirror → builds the assets in CI, uploads `public/build`, then `git pull` + `composer install --no-dev` + `migrate` + `optimize` on the server via SSH. Forgejo variables `SSH_HOST`, `SSH_USER`, `SSH_FINGERPRINT`, `DEPLOY_PATH`, `PRIMARY_SITE_URL`, secret `SSH_KEY`.
-- Cron every minute: `schedule:run` and `queue:work --max-time=50` (mails and the group sync are queued).
+- Cron every minute: `schedule:run` and `queue:work --max-time=50` (mails, the group sync and the webhooks are queued).
 
 ## Local development
 
@@ -46,3 +51,4 @@ AccountManager («Konto»): central account portal for own services. Users log i
 - Never store credentials in the repository; `.env` and `.ddev/config.local.yaml` are git-ignored.
 - Only change groups the AccountManager manages (the `access_group`s of services); others belong to the admin.
 - Registration and confirmation must not reveal whether an address is known.
+- Apps get only household uuid, name and members' `oidc_sub` + role; never send other profile data in webhooks or API responses.

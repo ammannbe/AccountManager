@@ -1,6 +1,6 @@
 # Konzept: AccountManager (SSO, Dienste, Abos, Haushalte)
 
-Stand: 2026-11-01 · Status: Phasen 1–4 umgesetzt (Phase 4 als MVP)
+Stand: 2026-11-07 · Status: Phasen 1–5 umgesetzt (Phase 4 als MVP); Phase 7 und Phase 8 (Konto-Teil) auf Branches `feature/households`
 
 **Namen:** Die zentrale App heisst **AccountManager** (Repo und Projektordner), für User erscheint sie als «Konto» unter `konto.<domain>`. Pocket ID läuft unter `login.<domain>`. Im Text steht «Konto» für den AccountManager.
 
@@ -86,13 +86,14 @@ Anders als die Apps braucht der AccountManager einen Identitätsanbieter mit Adm
 | `invoices`, `invoice_items` | Rechnungen | `number`, `user_id`, `currency`, `net_cents`, `tax_cents`, `total_cents`, `due_at`, `status` (`open`, `paid`, `overdue`, `void`), `qr_reference`, `paid_at`; Positionen mit Satz und Betrag zum Zeitpunkt der Rechnung (Snapshot) |
 | `suspensions` | Sperren von Zugängen oder Funktionen | `user_id`, `service_account_id` bzw. `feature_id`, `reason_id`, `custom_reason`, `suspended_by`, `suspended_at`, `lifted_at` |
 | `suspension_reasons` | Vordefinierte Begründungen (mehrsprachig) | `key`, `text` (z. B. «Offene Rechnung»), `active` |
-| `households` | Haushalte | `uuid`, `name`, `created_by` |
+| `households` | Haushalte | `uuid`, `name`, `created_by`, `version` (steigt bei jeder Änderung) |
 | `household_members` | Mitglieder | `household_id`, `user_id`, `role` (`admin`, `member`), `joined_at` |
-| `household_invitations` | Einladungen per E-Mail | `household_id`, `email`, `token_hash`, `role`, `expires_at`, `accepted_at` |
+| `household_invitations` | Einladungen per E-Mail | `household_id`, `email`, `token_hash`, `role`, `invited_by`, `expires_at`, `accepted_at` |
+| `household_imports` | Vorschläge der Apps beim Umstieg lokal → Konto | `service_id`, `local_id`, `name`, `members` (JSON: `sub`, `role`), `status` (`pending`, `confirmed`, `rejected`), `household_id`, `resolved_by` |
 | `household_shares` (optional) | Übersicht, was in welcher App geteilt ist (von den Apps gemeldet) | `household_id`, `service_id`, `resource_type`, `resource_id`, `label` |
-| `webhooks` | Benachrichtigung der Apps | `service_id`, `url`, `secret` |
+| `webhooks` | Benachrichtigung der Apps | umgesetzt als Felder von `services`: `webhook_url`, `secret` (verschlüsselt), `secret_created_at` |
 | `settings` | Gläubiger und Abrechnung | QR-IBAN bzw. IBAN, Name, Adresse, MWST-Nummer, Standardwährung, Zahlungsfrist, Admin-E-Mail für Benachrichtigungen |
-| `webhook_deliveries` | Zustellprotokoll | `webhook_id`, `event_id`, `event`, `attempts`, `status`, `last_error` |
+| `webhook_deliveries` | Zustellprotokoll | `service_id`, `event_id`, `event`, `payload` (signierter Body), `attempts`, `status` (`pending`, `delivered`, `failed`), `response_status`, `last_error`, `delivered_at` |
 | Audit-Log | Wer hat wann was freigeschaltet | |
 
 ### 5.2 Selbstregistrierung pro Dienst
@@ -107,7 +108,7 @@ Anders als die Apps braucht der AccountManager einen Identitätsanbieter mit Adm
 1. Änderung im Konto (Zugang, Abo aktiv/beendet, Rechnung überfällig).
 2. Das Konto berechnet die Gruppen des Users neu und setzt sie per API in Pocket ID.
 3. Das Konto schickt einen signierten Webhook (`entitlements.changed`, HMAC) an die betroffenen Apps.
-4. Apps übernehmen die Gruppen beim nächsten Login aus dem Token. Per Webhook bzw. API `GET /api/entitlements/{sub}` (Client-Credentials) aktualisieren sie sofort, z. B. um eine laufende Sitzung zu sperren.
+4. Apps übernehmen die Gruppen beim nächsten Login aus dem Token. Per Webhook bzw. API `GET /api/entitlements/{sub}` (Client-Credentials: HTTP Basic mit Schlüssel und Secret des Dienstes, wie bei den Haushalten) aktualisieren sie sofort, z. B. um eine laufende Sitzung zu sperren.
 
 Ohne Konto gilt in jeder App die lokale Konfiguration (`ENTITLEMENTS_DRIVER=local`, z. B. KI für alle an oder aus).
 
@@ -150,7 +151,7 @@ Ziel: Ein Haushalt (z. B. «Familie Muster») teilt app-übergreifend Inhalte, z
 
 1. Ein User erstellt im Konto einen Haushalt und lädt Personen per E-Mail ein.
 2. Die eingeladene Person nimmt an. Hat sie noch keinen Account, kann sie sich über den Link registrieren; für Dienste ohne Selbstregistrierung braucht es trotzdem eine Freigabe (siehe 5.2).
-3. Das Konto meldet die Änderung per Webhook (`household.created`, `household.updated`, `household.deleted`, `household.member_added`, `household.member_removed`) an alle angebundenen Apps.
+3. Das Konto meldet die Änderung per Webhook (`household.created`, `household.updated`, `household.deleted`, `household.member_added`, `household.member_updated`, `household.member_removed`) an die angebundenen Apps, in denen ein betroffenes Mitglied einen Zugang hat.
 4. Die Apps aktualisieren ihre lokale Kopie der Mitgliedschaften (abgeglichen über `oidc_sub`). Mitglieder, die eine App noch nie benutzt haben, werden beim ersten Login in dieser App zugeordnet.
 5. Optional melden die Apps ihre Haushalts-Freigaben an das Konto zurück, damit der Haushalt im Konto eine Übersicht zeigt («Kochbuch Familienrezepte, Listen Wocheneinkauf und Getränke»).
 
@@ -159,13 +160,16 @@ Ziel: Ein Haushalt (z. B. «Familie Muster») teilt app-übergreifend Inhalte, z
 - Zustellung über die Queue mit Wiederholungen (exponentiell), Protokoll in `webhook_deliveries`.
 - Jedes Ereignis hat eine `event_id` und einen Zeitstempel; Apps verarbeiten Ereignisse idempotent und ignorieren veraltete.
 - Signatur per HMAC mit Secret pro Dienst, Schutz gegen Wiederholung über den Zeitstempel.
+- Umsetzung (Haushalte): `X-Konto-Signature: sha256=<HMAC-SHA256 über "{timestamp}.{body}">`, `X-Konto-Timestamp`, Toleranz 300 s; 8 Versuche über rund 10 h; jedes Ereignis enthält den vollständigen Stand des Haushalts mit `version`, die Apps ignorieren Ereignisse mit kleinerer oder gleicher Version. Details: [`docs/HOUSEHOLDS-API.md`](HOUSEHOLDS-API.md).
 
 **Schnittstelle für «haushaltsfähige» Apps**
 
 - Webhook-Empfang (signiert) für die Haushalts-Ereignisse oben.
 - Abgleich beim Start und als Fallback: `GET /api/households?sub=<oidc_sub>` am Konto (Client-Credentials).
 - Optional: `PUT /api/households/{uuid}/shares` am Konto für die Übersicht.
+- Umstieg: `POST /api/households/import` (Vorschläge) und `GET /api/households/import` (Stand, Zuordnung lokale ID → UUID).
 - Jede neue App (z. B. Haushaltsaufgaben) implementiert dieselbe Schnittstelle und bekommt Haushalte damit ohne Änderungen am Konto.
+- Vertrag für die Apps (Authentifizierung, Beispiele, Signatur, Ereignisse, Reihenfolge): [`docs/HOUSEHOLDS-API.md`](HOUSEHOLDS-API.md).
 
 > **Notiz (2026-11-01): Chorelist.** In Arbeit unter `~/Projekte/Chorelist`, die geplante App für Haushaltsaufgaben, aufgebaut auf der Codebasis der Shoppinglist (Laravel, offline-first PWA mit RxDB). Sie soll von Anfang an haushaltsfähig sein (Schnittstelle oben, `HOUSEHOLDS_DRIVER`) und dieselben Auth-Einstellungen wie die anderen Apps bekommen (lokaler Login, optional OIDC, siehe Abschnitt 6). Damit ist sie der dritte Dienst im Konto (`svc-chorelist`).
 
@@ -173,7 +177,7 @@ Ziel: Ein Haushalt (z. B. «Familie Muster») teilt app-übergreifend Inhalte, z
 
 - Die Apps behalten eine lokale Haushaltsverwaltung (`HOUSEHOLDS_DRIVER=local`): Haushalt anlegen, per E-Mail einladen, wie heute bei Kochbüchern. Diese Haushalte gelten nur in der jeweiligen App.
 - Mit `HOUSEHOLDS_DRIVER=konto` ist die lokale Verwaltung schreibgeschützt; die App spiegelt nur die Haushalte aus dem Konto.
-- Umstieg von lokal auf Konto: Die App exportiert ihre lokalen Haushalte an das Konto (Zusammenführung über Namen und Mitglieder, mit manueller Bestätigung) und speichert danach die `konto_household_uuid`.
+- Umstieg von lokal auf Konto: Die App exportiert ihre lokalen Haushalte an das Konto (Zusammenführung über Namen und Mitglieder, mit manueller Bestätigung durch einen Admin des Kontos unter «Haushaltsvorschläge») und speichert danach die `konto_household_uuid`.
 - Rückbau: Die gespiegelten Haushalte werden zu lokalen Haushalten; Freigaben bleiben erhalten.
 
 **Besonderheiten**
@@ -246,6 +250,8 @@ Jede Phase in einem eigenen Feature-Branch, mit Tests und einzeln deploybar.
 
 **Phase 4 (MVP):** Dienstekatalog, User, Zugänge (beantragt/aktiv/gesperrt) mit Freigabe im Admin-Bereich, Gruppen-Abgleich mit Pocket ID (nur verwaltete Gruppen), Selbstregistrierung pro Dienst mit Double-Opt-in, Honeypot und Login-Code, Portal «Meine Dienste», Import bestehender Pocket-ID-User (`accounts:import`). Dazu (2026-11-03): Konto ohne Dienst erstellen (`/register`), Profil (Name, E-Mail mit Bestätigung, Abgleich mit Pocket ID), Link zu den Passkeys, «Öffnen» startet den SSO-Login der App. **Phase 5 (2026-11-02):** freiwilliger Umstieg pro User, SSO-Knopf zuoberst bei Login, Registrierung und Profil aller Apps, Name des Anbieters aus Pocket ID. **Phase 7 (2026-11-06, Branch `feature/households`, noch nicht gemergt):** lokale Haushalte in RecipeManager (`cookbook_household`, Zugriff zur Laufzeit über `Cookbook::grants()`), Shoppinglist (`shopping_list_household`) und Chorelist (`task_list_household`); in den PWAs wird der Haushaltszugriff als Listen-Mitgliedschaft mit `direct = false` gespiegelt, damit der Sync den Entzug mitbekommt. Einladungen brauchen immer eine Zusage, `HOUSEHOLDS_DRIVER=konto` sperrt nur die lokale Verwaltung. Noch nicht: Webhooks an die Apps, Mailer pro Dienst, Profilfelder, Abos/Rechnungen, Haushalte.
 
+**Phase 8, Konto-Teil (2026-11-07, Branch `feature/households`, noch nicht gemergt):** Haushalte im Konto (Portal `/households`: erstellen, umbenennen, löschen, per E-Mail mit Rolle einladen, Einladung zurückziehen, annehmen/ablehnen, Rolle ändern, entfernen, austreten; mindestens ein Admin; Einladungen nur für die eingeladene, bestätigte Adresse, Link funktioniert auch für Gäste über Login bzw. Registrierung). Webhooks per Queue mit Protokoll, API für die Apps (`GET /api/households?sub=`, `GET /api/households/{uuid}`, `PUT …/shares`, Import-Vorschläge), Webhook-URL und Secret pro Dienst im Admin-Bereich, Übersichten für Admins (Haushalte, Haushaltsvorschläge, Webhooks). Wird ein User gelöscht, verlässt er alle Haushalte (ohne Admin wird das am längsten beigetretene Mitglied Admin, leere Haushalte werden gelöscht). Vertrag: [`docs/HOUSEHOLDS-API.md`](HOUSEHOLDS-API.md). Offen: die App-Seite (`HOUSEHOLDS_DRIVER=konto` in RecipeManager, Shoppinglist, Chorelist), `user.deleted` und `entitlements.changed` (Phase 6).
+
 In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistrierung. SSO wird dort nur mit von Hand angelegten Test- und Admin-Accounts genutzt; alle anderen User melden sich weiter lokal an. Ab Phase 5 wechseln bestehende User freiwillig (Abschnitt 7).
 
 **Lokale Entwicklung:** Passkeys brauchen HTTPS und eine feste Domain. Pocket ID läuft lokal als zusätzlicher DDEV-Dienst (z. B. `login.<projekt>.ddev.site`); für automatisierte Tests wird der OIDC-Anbieter gemockt.
@@ -281,6 +287,16 @@ In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistr
 - **Identitätsanbieter im AccountManager:** austauschbare Schnittstelle `IdentityProvider`, zuerst nur mit Pocket ID umgesetzt. Ohne passenden Treiber läuft ein reduzierter Betrieb: Login per OIDC, Zugänge und Gruppen pflegt der Admin von Hand im Identitätsanbieter; Abos, Rechnungen und Haushalte funktionieren weiter. Weitere Treiber (z. B. Authentik) erst bei konkretem Bedarf.
 
 - **Bestehende Tools (geprüft 2026-11-01):** Wizarr wird für Medienserver übernommen. Authentik (statt Pocket ID) und Invoice Ninja (statt eigener Abrechnung) werden nicht verwendet; Login bleibt Pocket ID, die Abrechnung wird selbst gebaut.
+
+### Entschieden (2026-11-07, Phase 8)
+
+- **Authentifizierung der Apps:** Die «Client-Credentials» sind ein Secret pro Dienst (64 Hex-Zeichen, im Konto verschlüsselt gespeichert, einmal angezeigt, erneuerbar). Die Apps rufen die API mit HTTP Basic auf (Schlüssel des Dienstes als Benutzer, Secret als Passwort); dasselbe Secret signiert die Webhooks. Kein OAuth-Server und kein neues Paket nötig; ein Wert pro App genügt. Das Secret muss im Klartext verfügbar sein (HMAC), daher verschlüsselt statt gehasht, Vergleich mit `hash_equals`.
+- **Webhook-Felder statt Tabelle `webhooks`:** pro Dienst eine URL (`services.webhook_url`), Protokoll in `webhook_deliveries` mit Bezug zum Dienst.
+- **Empfänger und Sichtbarkeit:** Ereignisse und API-Antworten nur an bzw. für Dienste, in denen mindestens ein betroffenes Mitglied einen Zugang hat. Der Snapshot enthält trotzdem alle Mitglieder (nur `sub` und Rolle), damit alle Dienste denselben Stand pro Version sehen.
+- **Reihenfolge:** Jedes Ereignis trägt den vollständigen Stand mit einer Versionsnummer pro Haushalt; die Apps setzen ihren Stand darauf und ignorieren ältere Versionen. Unbekannte Haushalte bestätigen sie per API (`404` = gelöscht).
+- **Rollenwechsel:** eigenes Ereignis `household.member_updated`.
+- **Import beim Umstieg:** bestätigt ein Admin des Kontos (nicht die Haushalts-Admins), weil dabei Mitglieder aus der App in einen bestehenden Haushalt kommen können.
+- **Mitglieder ohne Identität** (lokale Notfall-Admins) können Haushalten beitreten, erscheinen aber nicht in den Snapshots.
 
 ### Offen
 
