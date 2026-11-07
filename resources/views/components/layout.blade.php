@@ -16,6 +16,7 @@
             <a href="{{ auth()->check() ? route('portal') : route('login') }}" class="inline-flex items-center gap-3 text-2xl font-semibold"><img src="/favicon-96x96.png" alt="" class="size-9 rounded-lg">{{ __('Account') }}</a>
             @auth
                 <nav class="flex items-center gap-4 text-sm">
+                    <a href="{{ route('households.index') }}" class="underline">{{ __('Households') }}</a>
                     <a href="{{ route('profile') }}" class="underline">{{ __('Profile') }}</a>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf

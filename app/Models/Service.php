@@ -8,14 +8,25 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
+use SensitiveParameter;
 
 /**
  * @property ServiceType $type
+ * @property string|null $secret
+ * @property Carbon|null $secret_created_at
  */
 class Service extends Model
 {
     /** @use HasFactory<ServiceFactory> */
     use HasFactory;
+
+    /**
+     * Set only through rotateSecret().
+     *
+     * @var list<string>
+     */
+    protected $hidden = ['secret'];
 
     protected $fillable = [
         'key',
@@ -23,6 +34,7 @@ class Service extends Model
         'description',
         'url',
         'login_url',
+        'webhook_url',
         'type',
         'access_group',
         'self_signup',
@@ -41,6 +53,8 @@ class Service extends Model
             'self_signup' => 'boolean',
             'requires_approval' => 'boolean',
             'visible' => 'boolean',
+            'secret' => 'encrypted',
+            'secret_created_at' => 'datetime',
         ];
     }
 
@@ -83,5 +97,39 @@ class Service extends Model
     public static function managedGroups(): array
     {
         return array_values(array_map('strval', static::query()->whereNotNull('access_group')->orderBy('access_group')->pluck('access_group')->all()));
+    }
+
+    /**
+     * Generates a new secret for the webhook signatures and the API (HTTP Basic, key:secret) and
+     * returns it once; it is stored encrypted, the old one stops working right away.
+     */
+    public function rotateSecret(): string
+    {
+        $secret = bin2hex(random_bytes(32));
+
+        $this->forceFill(['secret' => $secret, 'secret_created_at' => now()])->save();
+
+        return $secret;
+    }
+
+    public function secretMatches(#[SensitiveParameter] string $secret): bool
+    {
+        return $this->secret !== null && $this->secret !== '' && hash_equals($this->secret, $secret);
+    }
+
+    /**
+     * Webhooks need a URL and a secret to sign them.
+     */
+    public function receivesWebhooks(): bool
+    {
+        return $this->webhook_url !== null && $this->webhook_url !== '' && $this->secret !== null && $this->secret !== '';
+    }
+
+    /**
+     * @return HasMany<WebhookDelivery, $this>
+     */
+    public function webhookDeliveries(): HasMany
+    {
+        return $this->hasMany(WebhookDelivery::class);
     }
 }

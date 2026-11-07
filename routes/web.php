@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Auth\OidcController;
+use App\Http\Controllers\HouseholdController;
+use App\Http\Controllers\HouseholdInvitationController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
@@ -29,7 +31,23 @@ Route::middleware('auth')->group(function () {
     Route::post('services/{service}/access', [PortalController::class, 'claim'])->name('services.claim');
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile');
     Route::put('profile', [ProfileController::class, 'update'])->middleware('throttle:10,1')->name('profile.update');
+
+    Route::get('households', [HouseholdController::class, 'index'])->name('households.index');
+    Route::post('households', [HouseholdController::class, 'store'])->middleware('throttle:20,1')->name('households.store');
+    Route::put('households/{household}', [HouseholdController::class, 'update'])->name('households.update');
+    Route::delete('households/{household}', [HouseholdController::class, 'destroy'])->name('households.destroy');
+    Route::post('households/{household}/invitations', [HouseholdController::class, 'invite'])->middleware('throttle:20,1')->name('households.invitations.store');
+    Route::delete('households/{household}/invitations/{invitation}', [HouseholdController::class, 'revoke'])->name('households.invitations.destroy');
+    Route::put('households/{household}/members/{member}', [HouseholdController::class, 'updateMember'])->name('households.members.update');
+    Route::delete('households/{household}/members/{member}', [HouseholdController::class, 'destroyMember'])->name('households.members.destroy');
+    Route::post('household-invitations/{invitation}/accept', [HouseholdInvitationController::class, 'acceptOpen'])->name('household-invitations.accept');
+    Route::post('household-invitations/{invitation}/decline', [HouseholdInvitationController::class, 'declineOpen'])->name('household-invitations.decline');
+    Route::post('invitations/{token}', [HouseholdInvitationController::class, 'acceptToken'])->middleware('throttle:10,1')->name('household-invitations.accept-token');
+    Route::post('invitations/{token}/decline', [HouseholdInvitationController::class, 'declineToken'])->middleware('throttle:10,1')->name('household-invitations.decline-token');
 });
+
+// Link of a household invitation: shows it to guests too (log in or create an account, then back here).
+Route::get('invitations/{token}', [HouseholdInvitationController::class, 'show'])->middleware('throttle:20,1')->name('household-invitations.show');
 
 // Confirmation of a new email address: signed link, works without being logged in.
 Route::middleware(['signed', 'throttle:10,1'])->group(function () {
