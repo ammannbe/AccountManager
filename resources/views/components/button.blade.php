@@ -1,9 +1,5 @@
 @props(['href' => null, 'secondary' => false])
-@php
-    $classes = $secondary
-        ? 'inline-flex w-full items-center justify-center rounded-lg border border-stone-300 bg-white px-4 py-2 font-medium hover:bg-stone-100'
-        : 'inline-flex w-full items-center justify-center rounded-lg bg-red-700 px-4 py-2 font-medium text-white hover:bg-red-800';
-@endphp
+@php $classes = ($secondary ? 'button-secondary' : 'button').' w-full'; @endphp
 @if ($href)
     <a href="{{ $href }}" {{ $attributes->merge(['class' => $classes]) }}>{{ $slot }}</a>
 @else

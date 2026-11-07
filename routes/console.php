@@ -3,10 +3,12 @@
 use App\Enums\AccountStatus;
 use App\Identity\IdentityProvider;
 use App\Jobs\SyncUserGroups;
+use App\Models\HouseholdInvitation;
 use App\Models\Registration;
 use App\Models\Service;
 use App\Models\ServiceAccount;
 use App\Models\User;
+use App\Models\WebhookDelivery;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Str;
@@ -96,4 +98,17 @@ Artisan::command('registrations:prune', function () {
     $this->info("Pruned {$pruned} registration(s).");
 })->purpose('Delete expired and old confirmed registrations');
 
+Artisan::command('households:prune', function () {
+    $invitations = HouseholdInvitation::query()
+        ->where(fn ($query) => $query
+            ->where('expires_at', '<', now()->subDays(30))
+            ->orWhere('accepted_at', '<', now()->subDays(30)))
+        ->delete();
+
+    $deliveries = WebhookDelivery::query()->where('created_at', '<', now()->subDays(30))->delete();
+
+    $this->info("Pruned {$invitations} invitation(s) and {$deliveries} webhook delivery(ies).");
+})->purpose('Delete old household invitations and webhook deliveries (older than 30 days)');
+
 Schedule::command('registrations:prune')->daily();
+Schedule::command('households:prune')->daily();

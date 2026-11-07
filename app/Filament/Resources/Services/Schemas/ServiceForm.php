@@ -3,10 +3,12 @@
 namespace App\Filament\Resources\Services\Schemas;
 
 use App\Enums\ServiceType;
+use App\Models\Service;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -50,6 +52,21 @@ class ServiceForm
                         Toggle::make('self_signup')->label(__('Self-registration'))->helperText(__('Anybody may register for this service.')),
                         Toggle::make('requires_approval')->label(__('Requires approval'))->helperText(__('An admin has to approve new accounts.')),
                         Toggle::make('visible')->label(__('Visible in the portal'))->default(true),
+                    ]),
+                Section::make(__('Households and webhooks'))
+                    ->description(__('Apps with households get signed webhooks and call the API with the service key and the secret (see docs/HOUSEHOLDS-API.md).'))
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('webhook_url')
+                            ->label(__('Webhook URL'))
+                            ->helperText(__('e.g. https://recipes.example.com/api/account-manager/webhook'))
+                            ->url()
+                            ->maxLength(255),
+                        TextEntry::make('secret_state')
+                            ->label(__('Secret'))
+                            ->state(fn (?Service $record): string => $record?->secret_created_at
+                                ? __('Set on :date', ['date' => $record->secret_created_at->isoFormat('LLL')])
+                                : __('Not set yet: generate it with the button at the top.')),
                     ]),
             ]);
     }
