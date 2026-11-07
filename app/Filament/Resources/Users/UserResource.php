@@ -6,7 +6,10 @@ use App\Enums\AccountStatus;
 use App\Filament\Resources\Users\Pages\CreateUser;
 use App\Filament\Resources\Users\Pages\EditUser;
 use App\Filament\Resources\Users\Pages\ListUsers;
+use App\Filament\Resources\Users\RelationManagers\FeatureGrantsRelationManager;
+use App\Filament\Resources\Users\RelationManagers\InvoicesRelationManager;
 use App\Filament\Resources\Users\RelationManagers\ServiceAccountsRelationManager;
+use App\Filament\Resources\Users\RelationManagers\SubscriptionsRelationManager;
 use App\Filament\Resources\Users\Schemas\UserForm;
 use App\Filament\Resources\Users\Tables\UsersTable;
 use App\Models\ServiceAccount;
@@ -54,6 +57,9 @@ class UserResource extends Resource
     {
         return [
             ServiceAccountsRelationManager::class,
+            SubscriptionsRelationManager::class,
+            FeatureGrantsRelationManager::class,
+            InvoicesRelationManager::class,
         ];
     }
 

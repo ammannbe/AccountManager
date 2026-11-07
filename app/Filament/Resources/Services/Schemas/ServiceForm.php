@@ -48,13 +48,19 @@ class ServiceForm
                             ->helperText(__('Active accounts get this group (e.g. svc-recipes); restrict the OIDC client to it.'))
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
+                        TextInput::make('admin_group')
+                            ->label(__('Admin group in the identity provider'))
+                            ->helperText(__('Optional: active accounts marked as admin get this group (e.g. svc-recipes-admin), for apps with AUTH_ADMIN_SOURCE=account-manager.'))
+                            ->maxLength(255)
+                            ->different('access_group')
+                            ->unique(ignoreRecord: true),
                         TextInput::make('position')->label(__('Position'))->numeric()->default(0)->required(),
                         Toggle::make('self_signup')->label(__('Self-registration'))->helperText(__('Anybody may register for this service.')),
                         Toggle::make('requires_approval')->label(__('Requires approval'))->helperText(__('An admin has to approve new accounts.')),
                         Toggle::make('visible')->label(__('Visible in the portal'))->default(true),
                     ]),
-                Section::make(__('Households and webhooks'))
-                    ->description(__('Apps with households get signed webhooks and call the API with the service key and the secret (see docs/HOUSEHOLDS-API.md).'))
+                Section::make(__('Webhooks and API'))
+                    ->description(__('Connected apps get signed webhooks (households, entitlements, deleted users) and call the API with the service key and the secret (see docs/HOUSEHOLDS-API.md and docs/ENTITLEMENTS-API.md).'))
                     ->columns(2)
                     ->schema([
                         TextInput::make('webhook_url')

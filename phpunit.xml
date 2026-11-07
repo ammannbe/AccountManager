@@ -23,6 +23,7 @@
         <env name="AUTH_OIDC_ENABLED" value="false" force="true"/>
         <server name="AUTH_OIDC_ENABLED" value="false" force="true"/>
         <env name="IDENTITY_DRIVER" value="manual" force="true"/>
+        <env name="BILLING_CREDITOR_IBAN" value="" force="true"/>
         <server name="IDENTITY_DRIVER" value="manual" force="true"/>
         <env name="APP_LOCALE" value="en" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

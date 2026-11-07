@@ -50,7 +50,7 @@ Jede Antwort und jedes Ereignis enthält den **vollständigen aktuellen Stand** 
 - `uuid`: stabile ID des Haushalts. Die App speichert sie als `account_manager_household_uuid`.
 - `name`: Name des Haushalts (max. 100 Zeichen).
 - `version`: Ganzzahl, steigt bei **jeder** Änderung des Haushalts um 1 (Name, Mitglieder, Rollen). Grundlage für Reihenfolge und Idempotenz (Abschnitt 5).
-- `members`: alle Mitglieder mit `sub` (= `oidc_sub`, die User-ID beim Identitätsanbieter) und `role` (`admin` | `member`), sortiert nach Beitritt. Mitglieder ohne Identität (lokale Notfall-Admins des Kontos) fehlen, weil sie die Apps nicht nutzen können.
+- `members`: alle Mitglieder mit `sub` (= `oidc_sub`, die User-ID beim Identitätsanbieter) und `role` (`admin` | `member`; unbekannte Werte späterer Erweiterungen behandelt die App wie `member`), sortiert nach Beitritt. Mitglieder ohne Identität (lokale Notfall-Admins des Kontos) fehlen, weil sie die Apps nicht nutzen können.
 - **Datenschutz:** Mehr verlässt das Konto nicht, keine Namen, E-Mail-Adressen oder anderen Profildaten. Mitglieder, die die App (noch) nicht nutzen, erscheinen nur mit ihrer `sub`; die App ordnet sie zu, sobald sich jemand mit dieser `sub` anmeldet.
 - Nur in `household.deleted`: `"members": []` und `"deleted": true`.
 
@@ -277,7 +277,7 @@ Die Route braucht keine Session und keinen CSRF-Schutz (z. B. in `routes/api.php
 Hinweise:
 
 - **Rollenwechsel** ist ein eigenes Ereignis `household.member_updated` (statt erneut `member_added`), damit Logs und Benachrichtigungen in den Apps eindeutig sind. Für den Abgleich spielt der Typ keine Rolle (Abschnitt 5).
-- **Konto gelöscht:** Das Konto entfernt alle Mitgliedschaften des Users (je ein `household.member_removed`). Bleibt ein Haushalt ohne Admin, wird das am längsten beigetretene Mitglied Admin (im selben Ereignis, im Snapshot sichtbar). Ein Haushalt ohne Mitglieder wird gelöscht (`household.deleted`). Das allgemeine Ereignis `user.deleted` (KONZEPT 11) folgt mit den Webhooks für Freischaltungen.
+- **Konto gelöscht:** Das Konto entfernt alle Mitgliedschaften des Users (je ein `household.member_removed`). Bleibt ein Haushalt ohne Admin, wird das am längsten beigetretene Mitglied Admin (im selben Ereignis, im Snapshot sichtbar). Ein Haushalt ohne Mitglieder wird gelöscht (`household.deleted`). Danach erhält jede App, in der der User einen Zugang hat oder hatte, das allgemeine Ereignis `user.deleted` (siehe [`ENTITLEMENTS-API.md`](ENTITLEMENTS-API.md), Abschnitt 5.2).
 - **Unbekannte Typen** (spätere Erweiterungen) mit `2xx` quittieren; enthalten sie `data.household`, wie `household.updated` behandeln.
 
 ## 5. Reihenfolge und Idempotenz
@@ -288,7 +288,7 @@ Die App speichert pro gespiegeltem Haushalt `account_manager_household_uuid` und
 2. **Veraltete ignorieren:** Ist `version` des Snapshots **kleiner oder gleich** `account_manager_version`, wird das Ereignis ignoriert (trotzdem `2xx`). Sonst anwenden und `account_manager_version` setzen.
 3. **Löschen:** `household.deleted` (bzw. `404` bei 3.3) → lokalen Haushalt löschen; Freigaben fallen weg, Inhalte bleiben beim Eigentümer. Wegen der fehlenden Reihenfolge kann danach noch ein älteres Ereignis dieses Haushalts eintreffen.
 4. **Unbekannte Haushalte:** Kommt ein Ereignis (ausser `household.deleted`) für eine unbekannte `uuid`, holt die App den Stand mit 3.3 und wendet die API-Antwort an; bei `404` wird nichts angelegt. So entstehen keine Haushalte aus veralteten Ereignissen nach einer Löschung. (Optional: Grabstein mit `uuid` und letzter Version statt des API-Aufrufs.)
-5. **API-Antworten** (3.2, 3.3) sind massgebend und werden angewendet, wenn ihre `version` grösser oder gleich `account_manager_version` ist.
+5. **API-Antworten** (3.2, 3.3) sind massgebend und werden **immer** angewendet, unabhängig von `account_manager_version`; danach gilt ihre `version` (auch wenn sie kleiner ist). Das deckt z. B. eine Wiederherstellung des Kontos aus einem Backup ab, nach der die Versionen wieder tiefer liegen. Webhooks dagegen nur mit grösserer Version (Punkt 2).
 6. **Periodischer Abgleich** (z. B. täglich): 3.2 für alle User mit `oidc_sub`, gespiegelte Haushalte ohne Treffer mit 3.3 prüfen. Damit heilen verlorene Webhooks und Haushalte, die den Dienst nicht mehr betreffen.
 7. **Entfernte Mitglieder:** Empfehlung: Verschwindet ein Mitglied aus dem Snapshot (entfernt oder ausgetreten), hebt die App die Freigaben seiner eigenen Inhalte (z. B. Kochbücher, Listen, deren Eigentümer es ist) für diesen Haushalt auf; die Inhalte bleiben bei ihm. So verhalten sich RecipeManager, Shoppinglist und Chorelist; das Konto weist im Portal beim Entfernen und Verlassen darauf hin.
 8. **Nach dem Anwenden** die app-spezifischen Folgen auslösen, z. B. in den PWAs die betroffenen Listen für alle (auch entfernte) Mitglieder neu synchronisieren (`syncHouseholdMembers()`/`touchForMembers()`).

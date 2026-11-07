@@ -120,4 +120,21 @@ class PortalTest extends TestCase
         app(Access::class)->suspend($account->fresh());
         $this->assertSame(['family'], $idp->groups['idp-5']);
     }
+
+    public function test_admins_see_a_link_to_the_panel_in_a_new_tab(): void
+    {
+        $url = Filament::getPanel('admin')->getUrl();
+        $link = '<a href="'.$url.'" target="_blank" rel="noopener"';
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->get(route('portal'))
+            ->assertOk()
+            ->assertSee($link, false);
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('portal'))
+            ->assertOk()
+            ->assertDontSee($link, false)
+            ->assertDontSee($url.'"', false);
+    }
 }

@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\OidcController;
 use App\Http\Controllers\EasterEggController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\HouseholdInvitationController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
@@ -35,6 +36,10 @@ Route::middleware('auth')->group(function () {
     Route::post('services/{service}/access', [PortalController::class, 'claim'])->name('services.claim');
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile');
     Route::put('profile', [ProfileController::class, 'update'])->middleware('throttle:10,1')->name('profile.update');
+    Route::put('profile/billing', [ProfileController::class, 'updateBilling'])->middleware('throttle:10,1')->name('profile.billing');
+
+    Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'download'])->middleware('throttle:30,1')->name('invoices.pdf');
 
     Route::get('households', [HouseholdController::class, 'index'])->name('households.index');
     Route::post('households', [HouseholdController::class, 'store'])->middleware('throttle:20,1')->name('households.store');

@@ -1,12 +1,17 @@
 <?php
 
+use App\Billing\Billing;
+use App\Billing\BillingException;
+use App\Entitlements\Entitlements;
 use App\Enums\AccountStatus;
+use App\Enums\SubscriptionStatus;
 use App\Identity\IdentityProvider;
 use App\Jobs\SyncUserGroups;
 use App\Models\HouseholdInvitation;
 use App\Models\Registration;
 use App\Models\Service;
 use App\Models\ServiceAccount;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Models\WebhookDelivery;
 use Illuminate\Support\Facades\Artisan;
@@ -110,5 +115,40 @@ Artisan::command('households:prune', function () {
     $this->info("Pruned {$invitations} invitation(s) and {$deliveries} webhook delivery(ies).");
 })->purpose('Delete old household invitations and webhook deliveries (older than 30 days)');
 
+Artisan::command('entitlements:refresh {--all : Recompute the entitlements of every linked user}', function (Entitlements $entitlements) {
+    // Subscriptions past their end are ended (the observer sends the new entitlements).
+    $expired = Subscription::query()->where('status', SubscriptionStatus::Active)->where('ends_at', '<=', now())->get();
+    $expired->each(fn (Subscription $subscription) => $subscription->update(['status' => SubscriptionStatus::Ended]));
+
+    // Subscriptions that started since the last runs (a day back, in case runs were missed); unchanged snapshots send nothing.
+    $userIds = $this->option('all')
+        ? User::query()->whereNotNull('oidc_sub')->pluck('id')
+        : Subscription::query()->where('status', SubscriptionStatus::Active)->whereBetween('starts_at', [now()->subDay(), now()])->pluck('user_id');
+
+    $entitlements->refreshUsers(array_map('intval', $userIds->all()));
+
+    $this->info("Ended {$expired->count()} subscription(s), checked {$userIds->unique()->count()} user(s).");
+})->purpose('End expired subscriptions and send the entitlements of subscriptions that started');
+
+Artisan::command('billing:run', function (Billing $billing) {
+    if (! $billing->enabled()) {
+        $this->warn('Billing is disabled (BILLING_CREDITOR_IBAN is not set): no invoices are created.');
+    }
+
+    try {
+        $run = $billing->run();
+    } catch (BillingException $exception) {
+        $this->error($exception->getMessage());
+
+        return 1;
+    }
+
+    $this->info("Created {$run->created} invoice(s), sent {$run->issued}, {$run->overdue} became overdue, sent {$run->reminded} reminder(s).");
+
+    return 0;
+})->purpose('Create the invoices of due subscription periods, send them, mark overdue invoices and send reminders');
+
+Schedule::command('entitlements:refresh')->everyFifteenMinutes();
+Schedule::command('billing:run')->dailyAt('06:00')->withoutOverlapping();
 Schedule::command('registrations:prune')->daily();
 Schedule::command('households:prune')->daily();

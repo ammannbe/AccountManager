@@ -52,8 +52,19 @@ class Access
         }
     }
 
-    public function suspend(ServiceAccount $account): void
+    /**
+     * Suspends the account by hand; the user gets the reason by mail.
+     */
+    public function suspend(ServiceAccount $account, string $reason = '', ?User $by = null): void
     {
-        $account->update(['status' => AccountStatus::Suspended]);
+        app(Suspensions::class)->suspend($account, $reason, $by);
+    }
+
+    /**
+     * Lifts a suspension; the user gets a mail (with the optional message).
+     */
+    public function reactivate(ServiceAccount $account, ?string $message = null, ?User $by = null): void
+    {
+        app(Suspensions::class)->lift($account, $message, $by);
     }
 }

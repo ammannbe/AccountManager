@@ -1,6 +1,6 @@
 # Konzept: AccountManager (SSO, Dienste, Abos, Haushalte)
 
-Stand: 2026-11-07 · Status: Phasen 1–5 umgesetzt (Phase 4 als MVP); Phase 7 und Phase 8 (Konto-Teil) auf Branches `feature/households`
+Stand: 2026-11-07 · Status: Phasen 1–5 umgesetzt (Phase 4 als MVP); Phase 7 und Phase 8 (Konto-Teil) umgesetzt; Phase 6a (Freischaltungen ohne Rechnungen, Konto-Teil) auf Branch `feature/entitlements`
 
 **Namen:** Die zentrale App heisst **AccountManager** (Repo und Projektordner), für User erscheint sie als «Konto» unter `konto.<domain>`. Pocket ID läuft unter `login.<domain>`. Im Text steht «Konto» für den AccountManager.
 
@@ -74,25 +74,27 @@ Anders als die Apps braucht der AccountManager einen Identitätsanbieter mit Adm
 
 | Tabelle | Zweck | Wichtige Felder |
 |---|---|---|
-| `users` | Spiegel der Pocket-ID-User plus Profil | `oidc_sub`, `email`, `name`, `birthday` (optional), `address` (für Rechnungen), `locale` |
-| `services` | Dienstekatalog | `key` (z. B. `recipes`), `name`, `url`, `type` (`oidc`, `external`), `pocket_client_id`, `access_group`, `admin_group` (optional), `self_signup` (bool), `signup_requires_approval` (bool), `connector` (z. B. `emby`, `manual`), `mailer_id` (optional), `visible` |
+| `users` | Spiegel der Pocket-ID-User plus Profil | `oidc_sub`, `email`, `name`, `birthday` (optional), `address` (für Rechnungen; 6b: `billing_name`, `billing_street`, `billing_postal_code`, `billing_city`, `billing_country`), `locale` |
+| `services` | Dienstekatalog | `key` (z. B. `recipes`), `name`, `url`, `type` (`oidc`, `external`), `pocket_client_id`, `access_group`, `admin_group` (optional, umgesetzt in 6a), `self_signup` (bool), `signup_requires_approval` (bool), `connector` (z. B. `emby`, `manual`), `mailer_id` (optional), `visible` |
 | `mailers` | E-Mail-Versand pro Dienst | `name`, SMTP-Host, Port, Benutzer, Passwort (verschlüsselt), Absender; ohne Zuordnung gilt der Standard aus `.env` |
-| `service_accounts` | Zugang eines Users zu einem Dienst | `user_id`, `service_id`, `status` (`requested`, `active`, `suspended`), `external_id`, `external_username`, `notes` |
-| `features` | Freischaltbare Funktionen | `service_id`, `key` (z. B. `shoppinglist.ai`), `name`, `group` (z. B. `feat-shoppinglist-ai`) |
-| `plans` | Angebote | `name`, `price_cents`, `currency`, `tax_rate_id`, `prices_include_tax` (bool), `interval` (`month`, `year`, `once`), `active` |
+| `service_accounts` | Zugang eines Users zu einem Dienst | `user_id`, `service_id`, `status` (`requested`, `active`, `suspended`), `is_admin` (Admin in der App, 6a), `external_id`, `external_username`, `notes` |
+| `features` | Freischaltbare Funktionen | `service_id`, `key` (z. B. `shoppinglist.ai`, eindeutig pro Dienst), `name`, `description`, `group` (optional, z. B. `feat-shoppinglist-ai`) |
+| `plans` | Angebote | `service_id` (leer = Bündel), `name`, `description`, `price_cents`, `currency`, `tax_rate_id`, `prices_include_tax` (bool), `interval` (`month`, `year`, `once`), `active` (6a: ohne `tax_rate_id`/`prices_include_tax`, Preise noch ungenutzt) |
 | `tax_rates` | MWST-Sätze (konfigurierbar, auch «keine MWST») | `name`, `rate`, `active` |
-| `plan_features` | Was ein Plan freischaltet | `plan_id`, `feature_id` bzw. `service_id` |
-| `subscriptions` | Abo eines Users | `user_id`, `plan_id`, `status` (`active`, `past_due`, `cancelled`), `starts_at`, `ends_at`, `cancelled_at` |
-| `invoices`, `invoice_items` | Rechnungen | `number`, `user_id`, `currency`, `net_cents`, `tax_cents`, `total_cents`, `due_at`, `status` (`open`, `paid`, `overdue`, `void`), `qr_reference`, `paid_at`; Positionen mit Satz und Betrag zum Zeitpunkt der Rechnung (Snapshot) |
-| `suspensions` | Sperren von Zugängen oder Funktionen | `user_id`, `service_account_id` bzw. `feature_id`, `reason_id`, `custom_reason`, `suspended_by`, `suspended_at`, `lifted_at` |
-| `suspension_reasons` | Vordefinierte Begründungen (mehrsprachig) | `key`, `text` (z. B. «Offene Rechnung»), `active` |
+| `plan_features` | Was ein Plan freischaltet | `plan_id`, `feature_id` (6a: nur Funktionen; Zugänge vergibt weiterhin der Admin bzw. die Registrierung) |
+| `subscriptions` | Abo eines Users | `user_id`, `plan_id`, `status` (`active`, `suspended`, `ended`; kein `past_due`, überfällig ist die Rechnung), `starts_at`, `ends_at`, `billed_periods` (6b), `note`, `created_by` |
+| `feature_grants` | Direkt freigeschaltete Funktionen (ohne Plan) | `user_id`, `feature_id`, `note`, `granted_by` |
+| `entitlement_states` | Letzter Stand der Freischaltungen pro User und Dienst | `user_id`, `service_id`, `version`, `hash` |
+| `invoices`, `invoice_lines` | Rechnungen (6b) | `number` (`2026-0001`), `user_id`, `recipient` und `creditor` (Snapshots), `currency`, `total_cents`, `status` (`draft`, `open`, `paid`, `overdue`, `cancelled`), `period_start`/`period_end`, `issued_at`, `due_at`, `reference_type`, `reference`, `pdf_path`, `paid_at`, `payment_note`, `cancel_reason`; Positionen pro Abo-Periode mit Text und Betrag zum Zeitpunkt der Rechnung (Snapshot). Noch ohne MWST-Beträge |
+| `suspensions` | Sperren von Zugängen oder Abos | `user_id`, `service_account_id` bzw. `subscription_id`, `reason` (6a: Freitext; `reason_id` mit den Rechnungen), `suspended_by`, `suspended_at`, `lift_message`, `lifted_by`, `lifted_at` |
+| `suspension_reasons` | Vordefinierte Begründungen (mehrsprachig), folgt mit den Rechnungen | `key`, `text` (z. B. «Offene Rechnung»), `active` |
 | `households` | Haushalte | `uuid`, `name`, `created_by`, `version` (steigt bei jeder Änderung) |
 | `household_members` | Mitglieder | `household_id`, `user_id`, `role` (`admin`, `member`), `joined_at` |
 | `household_invitations` | Einladungen per E-Mail | `household_id`, `email`, `token_hash`, `role`, `invited_by`, `expires_at`, `accepted_at` |
 | `household_imports` | Vorschläge der Apps beim Umstieg lokal → Konto | `service_id`, `local_id`, `name`, `members` (JSON: `sub`, `role`), `status` (`pending`, `confirmed`, `rejected`), `household_id`, `resolved_by` |
 | `household_shares` (optional) | Übersicht, was in welcher App geteilt ist (von den Apps gemeldet) | `household_id`, `service_id`, `resource_type`, `resource_id`, `label` |
 | `webhooks` | Benachrichtigung der Apps | umgesetzt als Felder von `services`: `webhook_url`, `secret` (verschlüsselt), `secret_created_at` |
-| `settings` | Gläubiger und Abrechnung | QR-IBAN bzw. IBAN, Name, Adresse, MWST-Nummer, Standardwährung, Zahlungsfrist, Admin-E-Mail für Benachrichtigungen |
+| `settings` | Gläubiger und Abrechnung | 6b: keine Tabelle, sondern `config/billing.php` aus `.env` (`BILLING_*`): QR-IBAN bzw. IBAN, Name, Adresse, MWST-Nummer und -Hinweis, Referenzart, Standardwährung, Nummernpräfix, Zahlungsfrist, Erinnerung, Admin-E-Mail für Benachrichtigungen |
 | `webhook_deliveries` | Zustellprotokoll | `service_id`, `event_id`, `event`, `payload` (signierter Body), `attempts`, `status` (`pending`, `delivered`, `failed`), `response_status`, `last_error`, `delivered_at` |
 | Audit-Log | Wer hat wann was freigeschaltet | |
 
@@ -118,6 +120,8 @@ Regeln für `ENTITLEMENTS_DRIVER=account-manager`:
 - Zusätzlich gleichen die Apps periodisch ab (z. B. täglich), falls ein Webhook verloren ging.
 - Lokale User ohne `oidc_sub` (z. B. der Notfall-Admin) erhalten die lokal konfigurierten Standardrechte.
 
+Umsetzung im Konto (Phase 6a): Freischaltungen pro User und Dienst = Funktionen aus wirksamen Abos plus direkt freigeschaltete Funktionen, Admin-Recht über «Admin im Dienst» beim Zugang; beides nur bei aktivem Zugang. Jede Änderung erhöht die Version des Snapshots und schickt `entitlements.changed` an den betroffenen Dienst; beim Löschen eines Users geht `user.deleted` an alle Dienste, in denen er einen Zugang hat oder hatte. Vertrag: [`docs/ENTITLEMENTS-API.md`](ENTITLEMENTS-API.md).
+
 ### 5.4 Abos und Rechnungen
 
 - Pläne pro Dienst oder Funktion, z. B. «Shoppinglist KI» CHF x/Monat oder ein Bündel.
@@ -126,6 +130,8 @@ Regeln für `ENTITLEMENTS_DRIVER=account-manager`:
 - Preise, MWST-Sätze und Währung sind konfigurierbar. Einschränkung: Die Swiss QR-Bill erlaubt nur CHF und EUR; für andere Währungen gibt es eine Rechnung ohne QR-Teil.
 - **Zahlungsverzug (von Hand):** Nach Ablauf der Zahlungsfrist wird die Rechnung `overdue` und der Admin erhält eine Benachrichtigung (E-Mail und Liste im Admin-Bereich). Der Admin entscheidet: Erinnerung senden, Zugang oder Funktion sperren oder nichts tun. Beim Sperren wählt er eine vordefinierte Begründung oder schreibt eine eigene; der User erhält eine E-Mail mit dieser Begründung. Entsperren läuft genauso (mit E-Mail). Nichts wird automatisch gesperrt.
 - Rechnungen und Buchungsbelege werden 10 Jahre aufbewahrt (OR), auch nach Löschung des Users.
+- **Umgesetzt (6a):** Pläne, Abos von Hand (zuweisen mit Beginn und optionalem Ende, beenden, sperren, reaktivieren), Sperren und Entsperren von Zugängen und Abos mit Begründung per E-Mail, Protokoll in `suspensions`.
+- **Umgesetzt (6b):** Rechnungslauf `billing:run` (täglich, im Admin-Bereich auch von Hand): Abos von Plänen mit Preis und Intervall werden pro Periode im Voraus verrechnet, eine Rechnung pro User und Währung, PDF (A4) mit QR-Zahlteil per E-Mail, privat gespeichert. Admin-Bereich: Liste und Detail, PDF, «Als bezahlt markieren» (Datum, Notiz), stornieren mit Begründung, erneut senden, Sprung zum User zum Sperren. Überfällige Rechnungen: Status `overdue`, eine E-Mail an die Admins (bzw. `BILLING_ADMIN_EMAIL`), eine Erinnerung an den User nach `BILLING_REMINDER_DAYS`. Portal «Rechnungen» mit PDF, Rechnungsadresse im Profil. Noch nicht: Import camt.054, MWST-Sätze (nur Hinweistext), vordefinierte Sperrgründe, CSV-Export (Rückbau).
 - Zu klären vor dem Verkauf: AGB, Datenschutzerklärung, Kündigungsfristen.
 
 ### 5.5 Externe Dienste (z. B. Emby)
@@ -201,7 +207,7 @@ Für RecipeManager, Shoppinglist und Chorelist gleich aufgebaut, alles über `.e
 | `AUTH_LOCAL_REGISTRATION` | Lokale Selbstregistrierung | `true` |
 | `AUTH_OIDC_ENABLED`, `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET`, `AUTH_OIDC_LABEL` | «Anmelden mit …» | aus |
 | `AUTH_OIDC_REQUIRED_GROUP` | Zusätzliche Prüfung des `groups`-Claims | leer |
-| `AUTH_ADMIN_SOURCE` | Admin-Rechte `local` (in der App) oder `account-manager` (Gruppe `admin_group`, z. B. `svc-recipes-admin`); lokale Notfall-Admins bleiben immer Admin | `local` |
+| `AUTH_ADMIN_SOURCE` | Admin-Rechte `local` (in der App) oder `account-manager` (Feld `admin` des Freischaltungs-Snapshots aus API und Webhook, siehe [`ENTITLEMENTS-API.md`](ENTITLEMENTS-API.md); die Gruppe `admin_group`, z. B. `svc-recipes-admin`, ist nur eine zusätzliche Information beim Anmeldedienst, z. B. für die Login-Einschränkung in Pocket ID); lokale Notfall-Admins bleiben immer Admin | `local` |
 | `ENTITLEMENTS_DRIVER` | `local` oder `account-manager` | `local` |
 | `HOUSEHOLDS_DRIVER` | `local` oder `account-manager` | `local` |
 
@@ -239,7 +245,7 @@ Option für später, falls doch alle umgestellt werden sollen: Export aus den Ap
 | 3 | OIDC-Login in der Shoppinglist, Verbinden ohne Rückfrage | SSO für beide Apps | 2 |
 | 4 | Konto MVP: Dienste, User, Zugänge, Gruppen-Sync, Selbstregistrierung pro Dienst | Zentrale Verwaltung | 2 |
 | 5 | Freiwillige User-Migration (Abschnitt 7) | Bestehende User wechseln selbst auf SSO | 3, 4 |
-| 6 | Abos, Freischaltungen, Webhooks, QR-Rechnungen; KI-Freischaltung in der Shoppinglist | Kostenpflichtige Funktionen | 4 |
+| 6 | Abos, Freischaltungen, Webhooks, QR-Rechnungen; KI-Freischaltung in der Shoppinglist (6a: Freischaltungen und Abos ohne Rechnungen; 6b: Rechnungen) | Kostenpflichtige Funktionen | 4 |
 | 7 | Haushalte lokal in Shoppinglist, RecipeManager und Chorelist (`HOUSEHOLDS_DRIVER=local`) | Haushalte pro App, auch ohne Konto | — (jederzeit möglich) |
 | 8 | Haushalte im Konto, Webhooks, Spiegelung in den Apps, Übersicht der Freigaben | App-übergreifende Haushalte | 4, 7 |
 | 9 | Externe Dienste (Emby über Wizarr, zuerst manuell, danach per Wizarr-API), Nextcloud, Forgejo | Weitere Dienste | 4 |
@@ -250,7 +256,11 @@ Jede Phase in einem eigenen Feature-Branch, mit Tests und einzeln deploybar.
 
 **Phase 4 (MVP):** Dienstekatalog, User, Zugänge (beantragt/aktiv/gesperrt) mit Freigabe im Admin-Bereich, Gruppen-Abgleich mit Pocket ID (nur verwaltete Gruppen), Selbstregistrierung pro Dienst mit Double-Opt-in, Honeypot und Login-Code, Portal «Meine Dienste», Import bestehender Pocket-ID-User (`accounts:import`). Dazu (2026-11-03): Konto ohne Dienst erstellen (`/register`), Profil (Name, E-Mail mit Bestätigung, Abgleich mit Pocket ID), Link zu den Passkeys, «Öffnen» startet den SSO-Login der App. **Phase 5 (2026-11-02):** freiwilliger Umstieg pro User, SSO-Knopf zuoberst bei Login, Registrierung und Profil aller Apps, Name des Anbieters aus Pocket ID. **Phase 7 (2026-11-06, Branch `feature/households`, noch nicht gemergt):** lokale Haushalte in RecipeManager (`cookbook_household`, Zugriff zur Laufzeit über `Cookbook::grants()`), Shoppinglist (`shopping_list_household`) und Chorelist (`task_list_household`); in den PWAs wird der Haushaltszugriff als Listen-Mitgliedschaft mit `direct = false` gespiegelt, damit der Sync den Entzug mitbekommt. Einladungen brauchen immer eine Zusage, `HOUSEHOLDS_DRIVER=account-manager` sperrt nur die lokale Verwaltung. Noch nicht: Webhooks an die Apps, Mailer pro Dienst, Profilfelder, Abos/Rechnungen, Haushalte.
 
-**Phase 8, Konto-Teil (2026-11-07, Branch `feature/households`, noch nicht gemergt):** Haushalte im Konto (Portal `/households`: erstellen, umbenennen, löschen, per E-Mail mit Rolle einladen, Einladung zurückziehen, annehmen/ablehnen, Rolle ändern, entfernen, austreten; mindestens ein Admin; Einladungen nur für die eingeladene, bestätigte Adresse, Link funktioniert auch für Gäste über Login bzw. Registrierung). Webhooks per Queue mit Protokoll, API für die Apps (`GET /api/households?sub=`, `GET /api/households/{uuid}`, `PUT …/shares`, Import-Vorschläge), Webhook-URL und Secret pro Dienst im Admin-Bereich, Übersichten für Admins (Haushalte, Haushaltsvorschläge, Webhooks). Wird ein User gelöscht, verlässt er alle Haushalte (ohne Admin wird das am längsten beigetretene Mitglied Admin, leere Haushalte werden gelöscht). Vertrag: [`docs/HOUSEHOLDS-API.md`](HOUSEHOLDS-API.md). Offen: die App-Seite (`HOUSEHOLDS_DRIVER=account-manager` in RecipeManager, Shoppinglist, Chorelist), `user.deleted` und `entitlements.changed` (Phase 6).
+**Phase 8, Konto-Teil (2026-11-07, Branch `feature/households`, noch nicht gemergt):** Haushalte im Konto (Portal `/households`: erstellen, umbenennen, löschen, per E-Mail mit Rolle einladen, Einladung zurückziehen, annehmen/ablehnen, Rolle ändern, entfernen, austreten; mindestens ein Admin; Einladungen nur für die eingeladene, bestätigte Adresse, Link funktioniert auch für Gäste über Login bzw. Registrierung). Webhooks per Queue mit Protokoll, API für die Apps (`GET /api/households?sub=`, `GET /api/households/{uuid}`, `PUT …/shares`, Import-Vorschläge), Webhook-URL und Secret pro Dienst im Admin-Bereich, Übersichten für Admins (Haushalte, Haushaltsvorschläge, Webhooks). Wird ein User gelöscht, verlässt er alle Haushalte (ohne Admin wird das am längsten beigetretene Mitglied Admin, leere Haushalte werden gelöscht). Vertrag: [`docs/HOUSEHOLDS-API.md`](HOUSEHOLDS-API.md). Offen: die App-Seite (`HOUSEHOLDS_DRIVER=account-manager` in RecipeManager, Shoppinglist, Chorelist).
+
+**Phase 6a, Konto-Teil (2026-11-07, Branch `feature/entitlements`, noch nicht gemergt):** Funktionen pro Dienst (Schlüssel wie `shoppinglist.ai`, optional Gruppe beim Anmeldedienst), Pläne pro Dienst oder als Bündel (Preisfelder für später), Abos von Hand mit Beginn und Ende, direkt freigeschaltete Funktionen, «Admin im Dienst» pro Zugang mit optionaler Admin-Gruppe (`admin_group`). Wirksame Freischaltungen nur bei aktivem Zugang, versionierte Snapshots pro User und Dienst, Webhooks `entitlements.changed` und `user.deleted`, API `GET /api/entitlements/{sub}`, Gruppen-Abgleich um Admin- und Funktionsgruppen erweitert, `entitlements:refresh` alle 15 Minuten (Beginn und Ende von Abos). Sperren und Entsperren von Zugängen und Abos mit Begründung per E-Mail. Portal «Meine Dienste» zeigt aktive Pläne und freigeschaltete Funktionen. Vertrag: [`docs/ENTITLEMENTS-API.md`](ENTITLEMENTS-API.md). Offen: die App-Seite (`ENTITLEMENTS_DRIVER`/`AUTH_ADMIN_SOURCE=account-manager`, KI-Freischaltung in der Shoppinglist); Rechnungen siehe Phase 6b.
+
+**Phase 6b, Konto-Teil (2026-11-07, Branch `feature/entitlements`, noch nicht gemergt):** Rechnungen mit Swiss QR-Bill (`sprain/swiss-qr-bill`, PDF mit `dompdf/dompdf`). Gläubiger und Einstellungen über `BILLING_*`; ohne IBAN bleibt die Abrechnung aus. Rechnungslauf täglich (Perioden ab Abo-Beginn im Voraus, Nummern pro Jahr fortlaufend, Referenz QRR mit QR-IBAN bzw. SCOR, Snapshots von Empfänger und Gläubiger), PDF per E-Mail, Zahlungen von Hand, überfällige Rechnungen mit Benachrichtigung der Admins und einer Erinnerung, Stornieren statt Löschen (10 Jahre). Portal «Rechnungen», Rechnungsadresse im Profil und im Admin-Bereich. Später: Import camt.054 mit Abgleich über die Referenz.
 
 In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistrierung. SSO wird dort nur mit von Hand angelegten Test- und Admin-Accounts genutzt; alle anderen User melden sich weiter lokal an. Ab Phase 5 wechseln bestehende User freiwillig (Abschnitt 7).
 
@@ -282,7 +292,7 @@ In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistr
 - **Zahlungsverzug:** keine automatische Sperre. Benachrichtigung an den Admin, Sperre von Hand mit vordefinierter oder eigener Begründung, E-Mail an den User (siehe 5.4).
 
 - **Account löschen:** Das Konto schickt `user.deleted`; jede App löscht den User und seine privaten Inhalte, geteilte Inhalte gehen je nach App-Einstellung an einen anderen Haushalts-Admin über oder werden gelöscht.
-- **Admin-Rechte in den Apps:** standardmässig lokal. Optional zentral über das Konto (`AUTH_ADMIN_SOURCE=account-manager`, Gruppe pro Dienst).
+- **Admin-Rechte in den Apps:** standardmässig lokal. Optional zentral über das Konto (`AUTH_ADMIN_SOURCE=account-manager`: massgebend ist das Feld `admin` des Freischaltungs-Snapshots, nicht die Gruppe im Token; siehe 6).
 - **E-Mail-Versand:** standardmässig derselbe SMTP-Server wie die Apps, pro Dienst im Konto überschreibbar (`mailers`).
 - **Identitätsanbieter im AccountManager:** austauschbare Schnittstelle `IdentityProvider`, zuerst nur mit Pocket ID umgesetzt. Ohne passenden Treiber läuft ein reduzierter Betrieb: Login per OIDC, Zugänge und Gruppen pflegt der Admin von Hand im Identitätsanbieter; Abos, Rechnungen und Haushalte funktionieren weiter. Weitere Treiber (z. B. Authentik) erst bei konkretem Bedarf.
 
@@ -297,6 +307,27 @@ In den Phasen 2–3 gibt es noch kein Konto und in Pocket ID keine Selbstregistr
 - **Rollenwechsel:** eigenes Ereignis `household.member_updated`.
 - **Import beim Umstieg:** bestätigt ein Admin des Kontos (nicht die Haushalts-Admins), weil dabei Mitglieder aus der App in einen bestehenden Haushalt kommen können.
 - **Mitglieder ohne Identität** (lokale Notfall-Admins) können Haushalten beitreten, erscheinen aber nicht in den Snapshots.
+
+### Entschieden (2026-11-07, Phase 6a)
+
+- **Admin-Recht in den Apps:** Feld «Admin im Dienst» (`service_accounts.is_admin`) statt einer reservierten Funktion `<dienst>.admin`. Es geht als `admin` in den Snapshot und, falls der Dienst eine `admin_group` hat, als Gruppe an den Anmeldedienst (wie die Zugangsgruppe). Gilt nur bei aktivem Zugang; lokale Notfall-Admins der Apps bleiben immer Admin.
+- **Nur mit aktivem Zugang:** Abos und direkte Freischaltungen wirken nur, solange der Zugang zum Dienst `active` ist; sonst sind `features` leer und `admin` ist `false`. Der Status geht mit (`active`, `requested`, `suspended`, `none`).
+- **Snapshot pro User und Dienst mit Version:** wie bei den Haushalten vollständiger Stand statt Delta; die Version steigt nur bei einer tatsächlichen Änderung (Vergleich über einen Hash) und läuft nach einem gelöschten Zugang weiter. Die API rechnet vor der Antwort neu.
+- **Datenschutz:** Apps erhalten nur `sub`, Dienstschlüssel, Status, Admin-Flag und Funktionsschlüssel ihres eigenen Dienstes; keine Pläne, Preise, Notizen oder Sperrgründe. `404` der API für unbekannte User und User ohne Zugang gleich.
+- **`user.deleted`:** an alle Dienste mit Webhook, in denen der User einen Zugang hat (beliebiger Status) oder hatte; nur die `sub`. Den Zugang entfernen ist kein Löschen (`entitlements.changed` mit `status: none`).
+- **Pläne schalten nur Funktionen frei,** keine Zugänge: Zugänge bleiben bei Registrierung und Admin (Selbstregistrierung, Freigabe). Bündel-Pläne ohne Dienst schalten Funktionen mehrerer Dienste frei.
+- **Zeitgesteuerte Abos:** `starts_at`/`ends_at`, `entitlements:refresh` alle 15 Minuten; abgelaufene Abos werden `ended`.
+- **Sperrgründe:** vorerst Freitext; vordefinierte, mehrsprachige Begründungen (`suspension_reasons`) folgen mit den Rechnungen.
+
+### Entschieden (2026-11-07, Phase 6b)
+
+- **Pakete:** `sprain/swiss-qr-bill` für die QR-Daten (Validierung, Referenzen, QR-Code) und `dompdf/dompdf` für das PDF; den Zahlteil zeichnet das Konto selbst als HTML (Masse nach Style Guide), damit kein weiteres PDF-Paket nötig ist.
+- **Einstellungen aus `.env` statt Tabelle `settings`:** wie die übrige Konfiguration, generisch für andere Hoster. Ohne `BILLING_CREDITOR_IBAN` gibt es keinen Rechnungslauf; eine unpassende Kombination (z. B. QRR ohne QR-IBAN) stoppt den Lauf mit Meldung.
+- **Perioden:** im Voraus ab dem Beginn des Abos (Stichtag = Starttag, Monatsende ohne Überlauf), keine anteiligen Beträge; die letzte Periode vor `ends_at` wird voll verrechnet. Gesperrte Abos laufen weiter (die Sperre betrifft die Funktionen); wer nicht mehr zahlen soll, wird beendet.
+- **Eine Rechnung pro User und Währung pro Lauf,** Nummer `<Präfix><Jahr>-0001` fortlaufend pro Jahr; die Referenz entsteht aus Jahr und Laufnummer (eindeutig, für den späteren camt.054-Abgleich).
+- **Snapshots:** Empfänger, Gläubiger und Positionen werden mit der Rechnung gespeichert; das PDF lässt sich jederzeit gleich neu erzeugen. Rechnungen werden nie gelöscht (auch nicht mit dem User), nur storniert.
+- **Verzug:** eine Benachrichtigung an die Admins pro Lauf, genau eine Erinnerung an den User; Sperren bleibt von Hand (Sprung von der Rechnung zum User).
+- **MWST:** vorerst kein Satz, nur ein optionaler Hinweis (`BILLING_VAT_NOTE`) und die MWST-Nummer; `tax_rates` folgt bei Bedarf.
 
 ### Offen
 

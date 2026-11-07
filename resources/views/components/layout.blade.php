@@ -21,6 +21,14 @@
                     <img src="/favicon-96x96.png" alt="" class="size-7 rounded-md">
                     <span class="truncate">{{ __('Account') }}</span>
                 </a>
+                {{-- Admins: the panel in a new tab (same check as the panel itself). --}}
+                @php $panel = \Filament\Facades\Filament::getPanel('admin'); @endphp
+                @if (auth()->user()->canAccessPanel($panel))
+                    <a href="{{ $panel->getUrl() }}" target="_blank" rel="noopener" class="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-100">
+                        {{ __('Admin') }}
+                        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+                    </a>
+                @endif
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit" class="icon-button" title="{{ __('Log out') }}" aria-label="{{ __('Log out') }}">
@@ -29,7 +37,15 @@
                 </form>
             </div>
             <nav class="mx-auto flex max-w-xl gap-1 px-3 pb-2" aria-label="{{ __('Account') }}">
-                @foreach (['portal' => __('My services'), 'households.index' => __('Households'), 'profile' => __('Profile')] as $route => $label)
+                @php
+                    $tabs = ['portal' => __('My services'), 'households.index' => __('Households')];
+                    // Invoices only where billing is on or the user has some.
+                    if (app(\App\Billing\BillingConfig::class)->enabled() || auth()->user()->invoices()->issued()->exists()) {
+                        $tabs['invoices.index'] = __('Invoices');
+                    }
+                    $tabs['profile'] = __('Profile');
+                @endphp
+                @foreach ($tabs as $route => $label)
                     @php $active = request()->routeIs($route); @endphp
                     <a href="{{ route($route) }}" @class(['tab', 'tab-active' => $active]) @if ($active) aria-current="page" @endif>{{ $label }}</a>
                 @endforeach

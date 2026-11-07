@@ -2,12 +2,10 @@
 
 namespace App\Households;
 
-use App\Jobs\DeliverWebhook;
 use App\Models\Household;
 use App\Models\Service;
-use App\Models\WebhookDelivery;
+use App\Webhooks\Webhooks;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 /**
  * Sends the household events to the apps: one signed delivery per service that has a webhook
@@ -28,6 +26,8 @@ class HouseholdEvents
 
     public const MEMBER_REMOVED = 'household.member_removed';
 
+    public function __construct(private readonly Webhooks $webhooks) {}
+
     /**
      * @param  array<string, mixed>  $snapshot  Household::snapshot() at the time of the event
      * @param  list<int>  $userIds  current and former members the event concerns
@@ -35,30 +35,7 @@ class HouseholdEvents
      */
     public function dispatch(string $type, array $snapshot, array $userIds, array $data = []): void
     {
-        $services = $this->recipients($userIds);
-
-        if ($services->isEmpty()) {
-            return;
-        }
-
-        $eventId = (string) Str::uuid();
-        $payload = json_encode([
-            'event_id' => $eventId,
-            'type' => $type,
-            'occurred_at' => now()->utc()->format('Y-m-d\TH:i:s.v\Z'),
-            'data' => ['household' => $snapshot, ...$data],
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-
-        foreach ($services as $service) {
-            $delivery = WebhookDelivery::query()->create([
-                'service_id' => $service->id,
-                'event_id' => $eventId,
-                'event' => $type,
-                'payload' => $payload,
-            ]);
-
-            DeliverWebhook::dispatch($delivery);
-        }
+        $this->webhooks->send($type, ['household' => $snapshot, ...$data], $this->recipients($userIds));
     }
 
     /**

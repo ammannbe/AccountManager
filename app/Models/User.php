@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\AccountStatus;
+use App\Entitlements\Entitlements;
 use App\Households\Households;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'billing_name', 'billing_street', 'billing_postal_code', 'billing_city', 'billing_country'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -31,9 +31,18 @@ class User extends Authenticatable implements FilamentUser
 
     protected static function booted(): void
     {
-        // Memberships go before the user, so the apps learn about it and every household keeps an admin.
+        // Memberships go before the user, so the apps learn about it and every household keeps an
+        // admin; then every app the user had an account in gets user.deleted.
         static::deleting(function (User $user): void {
             app(Households::class)->forget($user);
+            app(Entitlements::class)->userDeleted($user);
+        });
+
+        // A new identity link makes the user visible to the apps (entitlements carry the sub).
+        static::saved(function (User $user): void {
+            if ($user->wasChanged('oidc_sub') || ($user->wasRecentlyCreated && $user->oidc_sub !== null)) {
+                app(Entitlements::class)->refresh($user);
+            }
         });
     }
 
@@ -58,6 +67,55 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * @return HasMany<Subscription, $this>
+     */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    /**
+     * @return HasMany<FeatureGrant, $this>
+     */
+    public function featureGrants(): HasMany
+    {
+        return $this->hasMany(FeatureGrant::class);
+    }
+
+    /**
+     * @return HasMany<Suspension, $this>
+     */
+    public function suspensions(): HasMany
+    {
+        return $this->hasMany(Suspension::class);
+    }
+
+    /**
+     * @return HasMany<Invoice, $this>
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    /**
+     * Recipient of an invoice: billing name (or the name), the structured address and the email.
+     *
+     * @return array{name: string, street: ?string, postal_code: ?string, city: ?string, country: ?string, email: ?string}
+     */
+    public function billingRecipient(): array
+    {
+        return [
+            'name' => $this->billing_name ?: $this->name,
+            'street' => $this->billing_street ?: null,
+            'postal_code' => $this->billing_postal_code ?: null,
+            'city' => $this->billing_city ?: null,
+            'country' => $this->billing_country ?: null,
+            'email' => $this->email,
+        ];
+    }
+
+    /**
      * @return BelongsToMany<Household, $this, HouseholdMember, 'membership'>
      */
     public function households(): BelongsToMany
@@ -77,22 +135,14 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * Groups of the identity provider the user should be in: one per active service account.
+     * Groups of the identity provider the user should be in: per active service account its access
+     * group, the admin group for admins and the groups of the effective features.
      *
      * @return list<string>
      */
     public function desiredGroups(): array
     {
-        return array_values($this->serviceAccounts()
-            ->where('status', AccountStatus::Active)
-            ->with('service')
-            ->get()
-            ->map(fn (ServiceAccount $account): ?string => $account->service->access_group)
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values()
-            ->all());
+        return app(Entitlements::class)->groups($this);
     }
 
     public function canAccessPanel(Panel $panel): bool

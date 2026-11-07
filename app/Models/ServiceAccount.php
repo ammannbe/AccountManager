@@ -9,9 +9,11 @@ use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property AccountStatus $status
+ * @property bool $is_admin
  */
 #[ObservedBy(ServiceAccountObserver::class)]
 class ServiceAccount extends Model
@@ -19,10 +21,18 @@ class ServiceAccount extends Model
     /** @use HasFactory<ServiceAccountFactory> */
     use HasFactory;
 
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_admin' => false,
+    ];
+
     protected $fillable = [
         'user_id',
         'service_id',
         'status',
+        'is_admin',
         'external_username',
         'note',
         'approved_at',
@@ -35,6 +45,7 @@ class ServiceAccount extends Model
     {
         return [
             'status' => AccountStatus::class,
+            'is_admin' => 'boolean',
             'approved_at' => 'datetime',
         ];
     }
@@ -53,5 +64,13 @@ class ServiceAccount extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    /**
+     * @return HasMany<Suspension, $this>
+     */
+    public function suspensions(): HasMany
+    {
+        return $this->hasMany(Suspension::class);
     }
 }
