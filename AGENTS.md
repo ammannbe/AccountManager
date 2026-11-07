@@ -38,7 +38,7 @@ AccountManager («Konto»): central account portal for own services. Users log i
 
 ## Local development
 
-- Pocket ID runs in the RecipeManager DDEV project (`https://recipemanager.ddev.site:14111`, API key `local-development-only-api-key`, see RecipeManager `AGENTS.md`); reach it at `http://ddev-RecipeManager-pocket-id:1411`. Put `AUTH_OIDC_*`, `IDENTITY_DRIVER=pocket-id`, `POCKET_ID_URL`, `POCKET_ID_API_KEY` into the git-ignored `.ddev/config.local.yaml` (`web_environment`). Mails of the AccountManager: its Mailpit (`ddev mailpit`); login codes are mailed by Pocket ID (RecipeManager's Mailpit).
+- Local Pocket ID: `.ddev/docker-compose.pocket-id.yaml` (`https://accountmanager.ddev.site:14111`, first start `/setup`, dev-only keys incl. API key `local-development-only-api-key`, Application Configuration via env with `UI_CONFIG_DISABLED=true`, mails to this project's Mailpit). Reach it at `http://ddev-AccountManager-pocket-id:1411`; the apps (RecipeManager, Shoppinglist, Chorelist) use the same URL as `AUTH_OIDC_ISSUER` through the shared `ddev_default` network. If the container exited (e.g. after sleep): `docker start ddev-AccountManager-pocket-id`. Put `AUTH_OIDC_*`, `IDENTITY_DRIVER=pocket-id`, `POCKET_ID_URL`, `POCKET_ID_API_KEY` into the git-ignored `.ddev/config.local.yaml` (`web_environment`). Mails of the AccountManager: its Mailpit (`ddev mailpit`); login codes are mailed by Pocket ID (also this Mailpit).
 - Mails and the group sync are queued: `ddev artisan queue:work --stop-when-empty` (production: cron `schedule:run` + `queue:work --max-time=50` like the other apps).
 
 ## Commands
