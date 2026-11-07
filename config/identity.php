@@ -21,6 +21,11 @@ return [
         ? rtrim((string) env('AUTH_OIDC_ISSUER'), '/').'/settings/account'
         : null),
 
+    // Admin UI of the provider as opened in the browser, linked in the panel (only with pocket-id,
+    // App\Identity\AdminUrl). Empty: the users page on the origin of account_url (POCKET_ID_URL may
+    // be an internal URL the browser cannot reach).
+    'admin_url' => env('IDENTITY_ADMIN_URL'),
+
     'pocket_id' => [
         // Base URL of the API as reached from this server (e.g. https://login.example.com).
         'url' => rtrim((string) env('POCKET_ID_URL', env('AUTH_OIDC_ISSUER', '')), '/'),

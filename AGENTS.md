@@ -28,6 +28,7 @@ AccountManager («Konto»): central account portal for own services. Users log i
 ## Identity provider
 
 - `App\Identity\IdentityProvider` (find, list, create and update users, sync groups, send a login code), bound by `IDENTITY_DRIVER` (`config/identity.php`): `pocket-id` (`PocketIdProvider`, REST API with `X-API-KEY`: `POST /api/users`, `GET|PUT /api/users/{id}` (the PUT replaces the whole user, so unchanged fields are sent back), `GET /api/users/{id}/groups`, `PUT /api/users/{id}/user-groups`, `POST /api/user-groups` for missing groups, `POST /api/users/{id}/one-time-access-email`) or `manual` (reduced mode: nothing is created or synced, the admins get `ManualSetupNeeded`).
+- Panel link to the provider's admin UI (dashboard card `PocketIdWidget` + navigation item, new tab; `App\Identity\AdminUrl`): only with `pocket-id`; `IDENTITY_ADMIN_URL`, otherwise `<origin of identity.account_url>/settings/admin/users` (`POCKET_ID_URL` may be internal, e.g. locally `http://ddev-AccountManager-pocket-id:1411`).
 - Pocket ID needs SMTP and "Email login code from admin" for the login codes, and an API key of an admin (`POCKET_ID_API_KEY`).
 - Commands: `accounts:import [--dry-run]` (links provider users by id/email and creates active accounts for the groups of services), `accounts:sync-groups`, `accounts:make-admin`.
 

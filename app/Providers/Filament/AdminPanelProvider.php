@@ -2,14 +2,17 @@
 
 namespace App\Providers\Filament;
 
+use App\Identity\AdminUrl;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationItem;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Illuminate\Contracts\View\View;
@@ -47,6 +50,15 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 Dashboard::class,
+            ])
+            ->navigationItems([
+                // Admin UI of the identity provider (new tab), only with pocket-id and a browser URL.
+                NavigationItem::make('pocket-id')
+                    ->label(fn (): string => __('Manage Pocket ID'))
+                    ->icon(Heroicon::OutlinedArrowTopRightOnSquare)
+                    ->url(fn (): ?string => AdminUrl::get(), shouldOpenInNewTab: true)
+                    ->visible(fn (): bool => AdminUrl::get() !== null)
+                    ->sort(100),
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
