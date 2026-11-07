@@ -193,7 +193,7 @@ class Households
                 $remaining = $household->members()->orderBy('joined_at')->orderBy('id')->get();
 
                 if ($remaining->isEmpty()) {
-                    $this->events->dispatch(HouseholdEvents::DELETED, [...$household->snapshot(), 'version' => $household->version + 1, 'deleted' => true], [(int) $user->getKey()]);
+                    $this->events->dispatch(HouseholdEvents::DELETED, [...$household->snapshot(), 'version' => $household->version + 1, 'members' => [], 'deleted' => true], [(int) $user->getKey()]);
                     $household->delete();
 
                     continue;

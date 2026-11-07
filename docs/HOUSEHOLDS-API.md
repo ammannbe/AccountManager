@@ -91,7 +91,7 @@ Accept: application/json
 
 - `sub` fehlt → `422`.
 - Unbekannte `sub` oder User ohne Zugang zu diesem Dienst → `{"data": []}`.
-- Die Liste ist vollständig: Haushalte mit `konto_household_uuid`, in denen der User lokal Mitglied ist, die aber fehlen, hat er verlassen (bzw. sie sind gelöscht). Die App entfernt dann seine Mitgliedschaft (und prüft den Haushalt mit 3.3).
+- Die Liste dient zum Finden von Haushalten, nicht zum Entfernen. Fehlt ein gespiegelter Haushalt, in dem der User lokal Mitglied ist, prüft die App ihn mit 3.3 und wendet den Snapshot an (`404` = gelöscht bzw. betrifft den Dienst nicht mehr). Massgebend für Mitgliedschaften ist immer der Snapshot (Abschnitt 5), auch für Mitglieder ohne Zugang zum Dienst: Sie bleiben im Snapshot und damit Mitglied, können die App aber ohne Zugang nicht nutzen.
 
 ### 3.3 `GET /api/households/{uuid}`
 
@@ -173,6 +173,7 @@ Antwort `202`:
 - `GET /api/households/import` liefert den Stand aller Vorschläge des Dienstes (gleiche Form). Die App fragt periodisch ab (z. B. stündlich), bis kein Vorschlag mehr `pending` ist:
   - `confirmed`: `household_uuid` und `household` (Snapshot) sind gesetzt. Die App speichert `konto_household_uuid` beim lokalen Haushalt, übernimmt Name und Mitglieder aus dem Snapshot und behält ihre Freigaben (z. B. `cookbook_household`).
   - `rejected`: Der lokale Haushalt wird nicht gespiegelt. Empfehlung: in einen lokalen, schreibgeschützten Zustand überführen oder dem Eigentümer anzeigen; die Freigaben entfallen erst, wenn die App den Haushalt löscht.
+- Mitglieder ohne `oidc_sub` kann die App nicht vorschlagen. Da nach der Bestätigung der Snapshot massgebend ist, verlieren sie den Haushaltszugriff in der App, bis sie ihren Login mit dem Konto verknüpfen und im Konto Mitglied des Haushalts sind. Die App sollte das vor dem Import anzeigen.
 - Vorgeschlagene Mitglieder ohne User im Konto werden nicht übernommen (der Admin sieht ihre Anzahl). Beim Zusammenführen behalten bestehende Mitglieder ihre Rolle; fehlt ein Admin, wird beim Erstellen das erste Mitglied Admin.
 - Nach der Bestätigung sendet das Konto die üblichen Ereignisse (`household.created` bzw. `household.updated`).
 
