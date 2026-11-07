@@ -91,7 +91,7 @@ class EntitlementApiTest extends TestCase
         ServiceAccount::factory()->for($user)->for($this->shopping)->create();
         FeatureGrant::query()->create(['user_id' => $user->id, 'feature_id' => $this->ai->id]);
 
-        $this->api('/api/entitlements/unknown')->assertNotFound();
+        $this->api('/api/entitlements/unknown')->assertNotFound()->assertExactJson(['message' => 'Not found.']);
         $this->api('/api/entitlements/sub-anna', key: 'recipes', secret: $recipesSecret)->assertNotFound();
 
         // After the account is deleted the app gets 404 (the last event said "none").

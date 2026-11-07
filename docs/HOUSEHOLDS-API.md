@@ -277,7 +277,7 @@ Die Route braucht keine Session und keinen CSRF-Schutz (z. B. in `routes/api.php
 Hinweise:
 
 - **Rollenwechsel** ist ein eigenes Ereignis `household.member_updated` (statt erneut `member_added`), damit Logs und Benachrichtigungen in den Apps eindeutig sind. Für den Abgleich spielt der Typ keine Rolle (Abschnitt 5).
-- **Konto gelöscht:** Das Konto entfernt alle Mitgliedschaften des Users (je ein `household.member_removed`). Bleibt ein Haushalt ohne Admin, wird das am längsten beigetretene Mitglied Admin (im selben Ereignis, im Snapshot sichtbar). Ein Haushalt ohne Mitglieder wird gelöscht (`household.deleted`). Das allgemeine Ereignis `user.deleted` (KONZEPT 11) folgt mit den Webhooks für Freischaltungen.
+- **Konto gelöscht:** Das Konto entfernt alle Mitgliedschaften des Users (je ein `household.member_removed`). Bleibt ein Haushalt ohne Admin, wird das am längsten beigetretene Mitglied Admin (im selben Ereignis, im Snapshot sichtbar). Ein Haushalt ohne Mitglieder wird gelöscht (`household.deleted`). Danach erhält jede App, in der der User einen Zugang hat oder hatte, das allgemeine Ereignis `user.deleted` (siehe [`ENTITLEMENTS-API.md`](ENTITLEMENTS-API.md), Abschnitt 5.2).
 - **Unbekannte Typen** (spätere Erweiterungen) mit `2xx` quittieren; enthalten sie `data.household`, wie `household.updated` behandeln.
 
 ## 5. Reihenfolge und Idempotenz

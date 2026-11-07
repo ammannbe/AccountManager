@@ -22,7 +22,9 @@ class EntitlementApiController extends Controller
         $snapshot = $user ? $entitlements->snapshot($user, $service) : null;
 
         // Unknown users and users without an account at this service look the same.
-        abort_if($snapshot === null, 404);
+        if ($snapshot === null) {
+            return response()->json(['message' => 'Not found.'], 404);
+        }
 
         return response()->json(['data' => $snapshot]);
     }
