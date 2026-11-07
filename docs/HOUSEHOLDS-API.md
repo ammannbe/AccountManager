@@ -19,8 +19,17 @@ In der App (Vorschlag für die Namen, alle über `.env`):
 | `ACCOUNT_MANAGER_URL` | Basis-URL des Kontos, z. B. `https://konto.example.com` |
 | `ACCOUNT_MANAGER_SERVICE_KEY` | Schlüssel des Dienstes im Konto (Feld «Schlüssel», z. B. `recipes`) |
 | `ACCOUNT_MANAGER_SECRET` | das erzeugte Secret (64 Hex-Zeichen) |
+| `ACCOUNT_MANAGER_LABEL` | optional: Name des Kontos in der App (leer: von `GET /api/info`) |
 
 Ein Secret pro Dienst dient für beides: Es signiert die Webhooks des Kontos und authentifiziert die API-Aufrufe der App. (Entscheid siehe `KONZEPT.md`, Abschnitt 11.)
+
+**Name des Kontos in der App:** `GET /api/info` ist öffentlich (ohne Authentifizierung, `throttle:60,1`) und liefert nur den Namen des Kontos (`APP_NAME`) und die Adresse der Haushaltsseite im Portal:
+
+```json
+{ "name": "Narrenhaus-Konto", "households_url": "https://konto.example.com/households" }
+```
+
+Die Apps zeigen damit z. B. «Haushalte im «Narrenhaus-Konto» verwalten» statt des allgemeinen Worts «Konto» (`App\Households\AccountManagerLabel::get()`: `ACCOUNT_MANAGER_LABEL`, sonst dieser Name (einen Tag gecacht, ein Fehler 10 Minuten), sonst «Konto»). Die Antwort enthält nie Geheimnisse oder Benutzerdaten.
 
 ## 2. Datenmodell aus Sicht der App
 
